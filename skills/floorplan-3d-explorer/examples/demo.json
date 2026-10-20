@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "name": "虚构示例 · 一室一厅",
+  "wallHeight": 2800,
+  "wallThickness": 180,
+  "rooms": [
+    {"id":"living","name":"客餐厅","polygon":[[0,0],[4500,0],[4500,6000],[0,6000]],"floor":"tile","view":{"at":[3200,3600],"lookAt":[1000,4500]}},
+    {"id":"bedroom","name":"卧室","polygon":[[4500,0],[8000,0],[8000,6000],[4500,6000]],"floor":"wood","view":{"at":[5200,3500],"lookAt":[6600,4000]}}
+  ],
+  "walls": [
+    {"a":[0,0],"b":[8000,0],"openings":[{"type":"door","offset":2800,"width":950}]},
+    {"a":[0,0],"b":[0,6000]},
+    {"a":[8000,0],"b":[8000,6000],"openings":[{"type":"window","offset":2700,"width":2000}]},
+    {"a":[0,6000],"b":[8000,6000],"openings":[{"type":"window","offset":1000,"width":2300},{"type":"window","offset":5300,"width":1700}]},
+    {"a":[4500,0],"b":[4500,6000],"openings":[{"type":"door","offset":2200,"width":950}]}
+  ],
+  "furniture": [
+    {"type":"sofa","at":[700,4100],"width":950,"depth":2400,"height":850},
+    {"type":"table","at":[2300,4200],"width":950,"depth":1400,"height":450},
+    {"type":"cabinet","at":[4100,4300],"width":400,"depth":2200,"height":600},
+    {"type":"table","at":[1800,1600],"width":1600,"depth":850,"height":760},
+    {"type":"chair","at":[1350,900],"width":450,"depth":450,"height":450},
+    {"type":"chair","at":[2250,900],"width":450,"depth":450,"height":450},
+    {"type":"chair","at":[1350,2300],"width":450,"depth":450,"height":450,"rotation":180},
+    {"type":"plant","at":[600,5500],"width":450,"depth":450,"height":1200},
+    {"type":"bed","at":[6500,3900],"width":1800,"depth":2100,"height":1100},
+    {"type":"cabinet","at":[6500,400],"width":2400,"depth":550,"height":2300},
+    {"type":"cabinet","at":[5300,3100],"width":450,"depth":450,"height":600},
+    {"type":"plant","at":[7500,5400],"width":450,"depth":450,"height":1000}
+  ],
+  "assumptions": ["这是为演示构造的虚拟户型，不对应真实住宅。", "家具、层高、门窗高度与夜间光照为示意。"]
+}
