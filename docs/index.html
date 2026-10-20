@@ -62660,7 +62660,10 @@ window.__characterFactory={build,get ready(){return Promise.all(waiting)}};
 function create(rooms,walls){
  function clear(x,z,radius=.27){
   if(!Number.isFinite(x)||!Number.isFinite(z))return false;
-  if(!rooms.some(r=>x>r.x+.04&&x<r.x+r.w-.04&&z>r.z+.04&&z<r.z+r.d-.04))return false;
+  // Room rectangles form one continuous floor. Insetting each rectangle creates
+  // invisible barriers at every shared boundary, including open doorways.
+  const epsilon=1e-7;
+  if(!rooms.some(r=>x>=r.x-epsilon&&x<=r.x+r.w+epsilon&&z>=r.z-epsilon&&z<=r.z+r.d+epsilon))return false;
   return !walls.some(w=>{
    if(w.a&&w.b){const dx=w.b[0]-w.a[0],dz=w.b[1]-w.a[1],length=dx*dx+dz*dz,t=length?Math.max(0,Math.min(1,((x-w.a[0])*dx+(z-w.a[1])*dz)/length)):0;return Math.hypot(x-w.a[0]-dx*t,z-w.a[1]-dz*t)<radius+(w.thickness||.18)/2;}
    const qx=Math.max(w.minx,Math.min(w.maxx,x)),qz=Math.max(w.minz,Math.min(w.maxz,z));return Math.hypot(x-qx,z-qz)<radius;
