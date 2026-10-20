@@ -56218,6 +56218,7 @@ requestAnimationFrame(tick);window.__fly={camera,room,blocked:false,setCamera(p,
 
 </script><script>(()=>{
 const T=__three,h=__home,fly=__fly,$=s=>document.querySelector(s),root=h.scene.children.find(o=>o.type==='Group');
+h.scene.background.set('#eee8dc');
 let ready=false,active=true,manual=true,time=0,origin=0,paper,paperMat,backing,ground;const duration=12,shots=[];root.position.y=.035;fly.blocked=true;$('#flyUI').style.opacity='0';$('#flyUI').style.pointerEvents='none';$('#flyUI .welcome').classList.add('gone');
 const ease=t=>{t=T.MathUtils.clamp(t,0,1);return t*t*(3-2*t)},phase=(t,a,b)=>ease((t-a)/(b-a));
 function isWall(m){const g=m.geometry.parameters||{};return h.walls.some(w=>Math.abs(m.position.x-(w.minx+w.maxx)/2)<.005&&Math.abs(m.position.z-(w.minz+w.maxz)/2)<.005&&Math.abs((g.width||0)-(w.maxx-w.minx))<.01&&Math.abs((g.depth||0)-(w.maxz-w.minz))<.01)}
@@ -56232,12 +56233,12 @@ function sample(t){if(!ready)return;time=T.MathUtils.clamp(t,0,duration);const c
  lines.visible=time>.5&&time<10;lineShots.forEach((s,i)=>{const l=lines.children[i];l.position.copy(s.mesh.position);l.scale.copy(s.mesh.scale);l.material.opacity=.45*phase(time,.5+s.delay,1.1+s.delay)*(1-phase(time,7.5,9.5));});
  const p=startP.clone().lerp(endP,cameraU),q=q0.clone().slerp(q1,cameraU),fit=Math.max(1,1.18/fly.camera.aspect);p.sub(center).multiplyScalar(fit).add(center);fly.setCamera(p,q);fly.camera.fov=46;fly.camera.updateProjectionMatrix();paper.visible=true;paperMat.opacity=1;paper.position.y=.018;
  const stage=time<1.4?['图上的线条，开始浮起。','保持原图位置，让空间从纸面生长']:time<6.5?['墙体正沿着图纸慢慢升起。','每一个转角，都留在原来的位置']:time<9.5?['家具显现，家的轮廓渐渐清晰。','纸面保留，生活从上面长出来']:['一个家，从纸上跃了出来。','马上可以环顾，也可以飞进房间'];$('#paperStage').textContent=manual&&time===0?'先看这张图，再让它立起来。':stage[0];$('#paperDetail').textContent=manual&&time===0?'保留原图的纸面、线条与标注':stage[1];$('#riseBar').style.width=time/duration*100+'%';const fade=phase(time,10.8,12);overlay.style.opacity=1-fade;$('#flyUI').style.opacity=fade;$('#flyUI').style.pointerEvents='none';}
-function finish(){sample(duration);active=false;manual=true;fly.blocked=false;overlay.hidden=true;$('#flyUI').style.opacity='1';$('#flyUI').style.pointerEvents='';lines.visible=false;for(const s of shots){s.mesh.material.opacity=s.opacity;s.mesh.material.transparent=s.transparent;s.mesh.material.depthWrite=s.depthWrite;}paper.visible=true;}
+function finish(){sample(duration);active=false;manual=true;fly.blocked=false;overlay.hidden=true;$('#flyUI').style.opacity='1';$('#flyUI').style.pointerEvents='';lines.visible=true;for(const l of lines.children)l.material.opacity=.15;for(const s of shots){s.mesh.material.opacity=s.opacity;s.mesh.material.transparent=s.transparent;s.mesh.material.depthWrite=s.depthWrite;}paper.visible=true;}
 function reset(){active=true;manual=true;fly.blocked=true;overlay.hidden=false;overlay.style.opacity='1';$('#paperTo3D').disabled=false;$('#growHouse').hidden=false;$('.riseProgress').hidden=true;$('#paperView').classList.add('selected');sample(0);}
 function play(){if(!ready||!manual&&active)return;active=true;manual=false;fly.blocked=true;overlay.hidden=false;$('#growHouse').hidden=true;$('.riseProgress').hidden=false;$('#paperTo3D').disabled=true;$('#paperView').classList.remove('selected');origin=performance.now();sample(0);}
 $('#growHouse').onclick=play;$('#paperTo3D').onclick=play;$('#paperView').onclick=reset;replay.onclick=reset;
 window.__opening={duration,snapshots:shots,get paper(){return paper},get ground(){return ground},get time(){return time},get paused(){return manual},get ready(){return ready},get active(){return active},seek(t){active=true;manual=true;fly.blocked=true;overlay.hidden=false;$('#growHouse').hidden=true;$('.riseProgress').hidden=false;sample(t)},play,finish,reset};
-async function init(){const image=$('#modal img');await image.decode();const c=document.createElement('canvas');c.width=1748;c.height=1236;const ctx=c.getContext('2d');ctx.drawImage(image,77,109,874,618,0,0,c.width,c.height);const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;const w=874/36.7,d=618/37.55,geometry=new T.PlaneGeometry(w,d,40,28),positions=geometry.attributes.position;for(let i=0;i<positions.count;i++){const nx=Math.abs(positions.getX(i)/(w/2)),ny=Math.abs(positions.getY(i)/(d/2));positions.setZ(i,.028*Math.pow(nx*ny,5));}geometry.computeVertexNormals();paperMat=new T.MeshStandardMaterial({map:texture,roughness:.97,metalness:0,side:T.DoubleSide});paper=new T.Mesh(geometry,paperMat);paper.rotation.x=-Math.PI/2;paper.position.set(center.x,.018,center.z);paper.castShadow=paper.receiveShadow=true;h.scene.add(paper);backing=new T.Mesh(new T.BoxGeometry(w,.025,d),new T.MeshStandardMaterial({color:'#ece9df',roughness:1}));backing.position.set(center.x,-.0125,center.z);backing.castShadow=backing.receiveShadow=true;h.scene.add(backing);ground=new T.Mesh(new T.PlaneGeometry(200,200),new T.MeshStandardMaterial({color:'#e9ece6',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;h.scene.add(ground);ready=true;reset();}
+async function init(){const image=$('#modal img');await image.decode();const c=document.createElement('canvas');c.width=1748;c.height=1236;const ctx=c.getContext('2d');ctx.drawImage(image,77,109,874,618,0,0,c.width,c.height);const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;const w=874/36.7,d=618/37.55,geometry=new T.PlaneGeometry(w,d,40,28),positions=geometry.attributes.position;for(let i=0;i<positions.count;i++){const nx=Math.abs(positions.getX(i)/(w/2)),ny=Math.abs(positions.getY(i)/(d/2));positions.setZ(i,.028*Math.pow(nx*ny,5));}geometry.computeVertexNormals();paperMat=new T.MeshStandardMaterial({map:texture,roughness:.97,metalness:0,side:T.DoubleSide});paper=new T.Mesh(geometry,paperMat);paper.rotation.x=-Math.PI/2;paper.position.set(center.x,.018,center.z);paper.castShadow=paper.receiveShadow=true;h.scene.add(paper);backing=new T.Mesh(new T.BoxGeometry(w,.025,d),new T.MeshStandardMaterial({color:'#ece9df',roughness:1}));backing.position.set(center.x,-.0125,center.z);backing.castShadow=backing.receiveShadow=true;h.scene.add(backing);ground=new T.Mesh(new T.PlaneGeometry(200,200),new T.MeshStandardMaterial({color:'#eee8dc',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;h.scene.add(ground);ready=true;reset();}
 init().catch(e=>{console.error(e);$('#paperStage').textContent='图纸加载失败，请重新打开';});addEventListener('resize',()=>{if(active&&manual)sample(time)});function tick(now){requestAnimationFrame(tick);if(!ready||!active||manual)return;sample((now-origin)/1000);if(time>=duration)finish()}requestAnimationFrame(tick);
 })();
 </script><script>// Feature study: ZWD11/house-plan-designer (MIT), ab7bb1c52eeb0056bfff782ba71bb9f5faa1e1ab.
@@ -56270,6 +56271,61 @@ let last=performance.now();function tick(now){requestAnimationFrame(tick);const 
 })();
 
 
+</script><script>(()=>{
+const style=document.createElement('style');
+style.textContent=`
+:root{--ink:#244c43;--cinnabar:#a84f3d;--linen:#f0ebdf}
+body{background:var(--linen)}
+#openingUI .paperCaption,#openingUI .paperNote,#openingUI .paperBrand small,#growHouse,#flyUI .logo small,#flyUI .note,#viewDeck .deckNote{display:none!important}
+#openingUI{color:var(--ink);z-index:4}
+#openingUI .paperBrand{left:49px;top:38px;font-family:'STSong','SimSun',serif;font-size:29px;letter-spacing:8px;line-height:1.4}
+#openingUI .paperBrand:after{content:'邸';display:inline-grid;place-items:center;width:23px;height:27px;margin-left:9px;vertical-align:4px;border:1px solid #a84f3dbb;color:var(--cinnabar);font:17px 'SimSun',serif;letter-spacing:0;transform:rotate(-5deg);border-radius:2px 1px 3px 1px}
+#openingUI .paperViews{right:48px;top:40px;padding:0;gap:0;border:1px solid #3657473b;border-radius:3px;background:#f7f3e9d9;box-shadow:0 4px 14px #293e2b05}
+#openingUI .paperViews button{padding:13px 24px;border-radius:0;font-size:12px;letter-spacing:2px;transition:background .25s,color .25s}
+#openingUI button.selected{background:#2b4c42;color:#faf4e6}
+#openingUI #paperTo3D{color:#f9f3e5;background:#a5513e;box-shadow:inset 0 0 0 4px #a5513e,inset 0 0 0 5px #e6c7ad66}
+#openingUI #paperTo3D:hover{background:#8e4032;box-shadow:inset 0 0 0 4px #8e4032,inset 0 0 0 5px #e6c7ad88}
+#openingUI button:focus-visible,#flyUI button:focus-visible{outline:2px solid #a5513e;outline-offset:4px}
+#openingUI .riseProgress{bottom:43px;width:180px;height:2px;background:#36574725;border-radius:0}
+#riseBar{background:var(--cinnabar)}
+#artMount{position:fixed;inset:0;pointer-events:none;z-index:3;box-shadow:inset 0 0 140px #6350370b}
+#artMount:before{content:'';position:absolute;inset:0;opacity:.055;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%234d4233' opacity='.7' filter='url(%23n)' d='M0 0h180v180H0z'/%3E%3C/svg%3E");mix-blend-mode:multiply}
+.mountCorner{position:absolute;width:22px;height:22px;border-color:#35564a50;border-style:solid;border-width:0}
+.mountCorner.a{left:22px;top:22px;border-top-width:1px;border-left-width:1px}.mountCorner.b{right:22px;top:22px;border-top-width:1px;border-right-width:1px}.mountCorner.c{left:22px;bottom:22px;border-bottom-width:1px;border-left-width:1px}.mountCorner.d{right:22px;bottom:22px;border-bottom-width:1px;border-right-width:1px}
+.artDrawing{position:absolute;bottom:37px;left:47px;width:95px;height:87px;color:#365b4b;opacity:.35}
+.artDrawing path{fill:none;stroke:currentColor;stroke-width:.65;vector-effect:non-scaling-stroke}.artDrawing .accent{stroke:#a5513e;stroke-width:1}
+.artAxis{position:absolute;right:48px;bottom:40px;width:41px;height:62px;border-right:1px solid #36574744}.artAxis:before{content:'';position:absolute;right:-3px;top:0;width:5px;height:5px;border-left:1px solid #36574777;border-top:1px solid #36574777;transform:rotate(45deg)}.artAxis:after{content:'';position:absolute;right:-11px;bottom:0;width:22px;border-bottom:1px solid #36574744}
+#flyUI{z-index:4;color:var(--ink)}#flyUI .logo{font-family:'SimSun',serif;letter-spacing:5px;font-size:23px}
+#flyUI button,#viewDeck button{border-radius:3px;background:#f8f5ecd9;border-color:#38544835;backdrop-filter:blur(12px)}
+#flyUI .actions button{font-size:11px;letter-spacing:1px;padding:10px 15px}
+#flyUI #paperFlyIn{background:#a5513e;color:#fff6e7;border-color:#a5513e}
+#viewDeck{border-radius:3px;background:#f8f5ece8;border-color:#38544825;box-shadow:0 8px 35px #3b463b08;padding:13px;width:194px}
+#viewDeck button.on{background:#2b4c42;border-color:#2b4c42}
+#flyUI .bottom{border-radius:3px;background:#f8f5ece8;font-size:10px;padding:10px 18px;color:#657468}
+#flyUI .badge{left:auto;right:30px;bottom:64px;padding:10px;border-right:1px solid #36574744;background:#f6f1e680}
+@media(max-width:650px){
+ #openingUI .paperBrand{left:25px;top:27px;font-size:21px;letter-spacing:4px}
+ #openingUI .paperBrand:after{width:17px;height:21px;font-size:13px;margin-left:5px;vertical-align:2px}
+ #openingUI .paperViews{top:auto;bottom:59px;right:50%;transform:translateX(50%);white-space:nowrap}
+ #openingUI .paperViews button{padding:14px 24px;font-size:11px}
+ .mountCorner.a,.mountCorner.c{left:12px}.mountCorner.b,.mountCorner.d{right:12px}.mountCorner.a,.mountCorner.b{top:12px}.mountCorner.c,.mountCorner.d{bottom:12px}
+ .artDrawing{left:25px;bottom:32px;width:47px;height:44px;opacity:.24}.artAxis{right:27px;bottom:30px;height:34px;width:23px}
+ #openingUI .riseProgress{bottom:42px;width:140px}
+ #flyUI .logo{font-size:16px;letter-spacing:2px;max-width:90px}
+ #flyUI .actions button{font-size:9px;padding:8px 5px;letter-spacing:0}
+ #flyUI .bottom{font-size:8px;bottom:18px;width:auto;max-width:92vw;line-height:1.7;white-space:nowrap;padding:8px 10px}
+ #flyUI .badge{right:18px;bottom:70px;font-size:8px;left:auto}
+}
+@media(prefers-reduced-motion:reduce){#openingUI button{transition:none}}
+`;
+document.head.append(style);
+const art=document.createElement('div');art.id='artMount';art.setAttribute('aria-hidden','true');art.innerHTML=`<i class="mountCorner a"></i><i class="mountCorner b"></i><i class="mountCorner c"></i><i class="mountCorner d"></i><svg class="artDrawing" viewBox="0 0 95 87"><path d="M8 48 43 28 79 48 44 68ZM8 48V25L43 5 79 25v23M43 5v23M8 25l36 20 35-20M44 45v23M8 55l36 20 35-20M8 62l36 20 35-20M23 17v23M61 15v23"/><path class="accent" d="M44 68V45L79 25M79 48V25"/></svg><i class="artAxis"></i>`;document.body.append(art);
+document.querySelector('#paperView').textContent='纸面';
+document.querySelector('#paperTo3D').textContent='3D 全景 ↗';
+document.querySelector('#flyUI .bottom').innerHTML='拖动环顾 · WASD 移动 · E / Q 升降';
+document.querySelector('#flyUI .bottom').title='Shift 加速 · 双击房间飞入 · Esc 回空中 · 自由飞行可穿墙';
+document.querySelector('#viewDeck summary').title='未标尺寸与装修为示意；自由飞行可穿墙';
+})();
 </script></body></html>
 
 
