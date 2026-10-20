@@ -56238,9 +56238,12 @@ function reset(){active=true;manual=true;fly.blocked=true;overlay.hidden=false;o
 function play(){if(!ready||!manual&&active)return;active=true;manual=false;fly.blocked=true;overlay.hidden=false;$('#growHouse').hidden=true;$('.riseProgress').hidden=false;$('#paperTo3D').disabled=true;$('#paperView').classList.remove('selected');origin=performance.now();sample(0);}
 $('#growHouse').onclick=play;$('#paperTo3D').onclick=play;$('#paperView').onclick=reset;replay.onclick=reset;
 window.__opening={duration,snapshots:shots,replacePlan,setDeskPose(){if(!ready)return;const m=Math.max(paper.geometry.parameters.width,paper.geometry.parameters.height);startP.copy(center).add(new T.Vector3(0,m*.88,m*.84));startL.copy(center).add(new T.Vector3(0,0,m*.035));q0.copy(qAt(startP,startL));if(active&&manual&&time===0)sample(0)},get paper(){return paper},get ground(){return ground},get time(){return time},get paused(){return manual},get ready(){return ready},get active(){return active},seek(t){active=true;manual=true;fly.blocked=true;overlay.hidden=false;$('#growHouse').hidden=true;$('.riseProgress').hidden=false;sample(t)},play,finish,reset};
-function replacePlan({canvas,segments,metersPerPixel,entry}){
+function replacePlan({canvas,segments,metersPerPixel,entry,roomAreas=[],calibrated=false}){
  if(!ready)throw Error('示例图尚未加载完成，请稍后再试');
  if(!segments.length||segments.length>1200||!Number.isFinite(metersPerPixel)||metersPerPixel<=0)throw Error('图纸数据无效');
+
+ for(const s of segments){if(!s.a||!s.b||![...s.a,...s.b].every(Number.isFinite)||s.a.length!==2||s.b.length!==2)throw Error('墙体端点无效');const height=s.height??2.8;if(!Number.isFinite(height)||height<1||height>6||s.wallThickness!==undefined&&(!Number.isFinite(s.wallThickness)||s.wallThickness<.06||s.wallThickness>.6))throw Error('墙体尺寸无效');let previous=0;for(const o of [...(s.openings||[])].sort((a,b)=>a.from-b.from)){if(!['door','window'].includes(o.kind)||![o.from,o.to,o.sill,o.height].every(Number.isFinite)||o.from<previous||o.to>1||o.to<=o.from||o.sill<0||o.height<=0||o.sill+o.height>height-.05)throw Error('门窗洞口越界或重叠');previous=o.to}}
+ if(roomAreas.some(r=>![r.x,r.y,r.w,r.d].every(Number.isFinite)||r.w<=0||r.d<=0||r.x<0||r.y<0||r.x+r.w>canvas.width+.01||r.y+r.d>canvas.height+.01))throw Error('房间范围无效');
  active=true;manual=true;fly.blocked=true;h.uploaded=true;
  for(const child of [...root.children])root.remove(child);
  for(const s of shots)if(s.uploaded){s.mesh.geometry.dispose();s.mesh.material.dispose();}
@@ -56249,20 +56252,40 @@ function replacePlan({canvas,segments,metersPerPixel,entry}){
  const w=canvas.width*metersPerPixel,d=canvas.height*metersPerPixel;
  const wx=x=>center.x+(x-canvas.width/2)*metersPerPixel,wz=y=>center.z+(y-canvas.height/2)*metersPerPixel;
  h.walls.length=0;
- for(const s of segments){
-  const ax=wx(s.a[0]),az=wz(s.a[1]),bx=wx(s.b[0]),bz=wz(s.b[1]),length=Math.hypot(bx-ax,bz-az);if(length<.025)continue;
-  const thickness=T.MathUtils.clamp((s.thickness||3)*metersPerPixel,.09,.32);
-  const geo=new T.BoxGeometry(length,2.8,thickness),mat=new T.MeshStandardMaterial({color:'#e6e4d9',roughness:.9});
-  const m=new T.Mesh(geo,mat);m.position.set((ax+bx)/2,1.4,(az+bz)/2);m.rotation.y=-Math.atan2(bz-az,bx-ax);m.castShadow=m.receiveShadow=true;root.add(m);
-  const snap={mesh:m,p:m.position.clone(),scale:m.scale.clone(),opacity:1,transparent:false,depthWrite:true,originalDepthWrite:true,category:'wall',ceiling:false,hidden:false,uploaded:true,delay:T.MathUtils.clamp(s.a[1]/canvas.height,0,1)*1.2};shots.push(snap);lineShots.push(snap);
-  const l=new T.LineSegments(new T.EdgesGeometry(geo),new T.LineBasicMaterial({color:'#466855',transparent:true,opacity:0}));l.rotation.copy(m.rotation);lines.add(l);
-  h.walls.push({a:[ax,az],b:[bx,bz],thickness,minx:Math.min(ax,bx)-thickness/2,maxx:Math.max(ax,bx)+thickness/2,minz:Math.min(az,bz)-thickness/2,maxz:Math.max(az,bz)+thickness/2});
+ // Geometry follows the edited wall centre line, including explicit door/window spans.
+ function piece(s,ax,az,bx,bz,from,to,bottom,top,type='wall'){
+  if(to-from<.00001||top-bottom<.00001)return;
+  const x1=ax+(bx-ax)*from,z1=az+(bz-az)*from,x2=ax+(bx-ax)*to,z2=az+(bz-az)*to;
+  const thickness=s.wallThickness||T.MathUtils.clamp((s.thickness||3)*metersPerPixel,.09,.32),glass=type==='window';
+  const geo=new T.BoxGeometry(Math.hypot(x2-x1,z2-z1),top-bottom,glass?.025:thickness);
+  const mat=new T.MeshStandardMaterial({color:glass?'#a3c3c9':'#e6e4d9',roughness:glass?.18:.9,transparent:glass,opacity:glass?.35:1,depthWrite:!glass});
+  const m=new T.Mesh(geo,mat);m.position.set((x1+x2)/2,(bottom+top)/2,(z1+z2)/2);m.rotation.y=-Math.atan2(z2-z1,x2-x1);m.castShadow=!glass;m.receiveShadow=true;m.userData.archType=type;m.userData.bottom=bottom;m.userData.top=top;root.add(m);
+  const snap={mesh:m,p:m.position.clone(),scale:m.scale.clone(),opacity:mat.opacity,transparent:glass,depthWrite:!glass,originalDepthWrite:!glass,category:'wall',ceiling:false,hidden:false,uploaded:true,delay:T.MathUtils.clamp(s.a[1]/canvas.height,0,1)*1.2};shots.push(snap);lineShots.push(snap);
+  const l=new T.LineSegments(new T.EdgesGeometry(geo),new T.LineBasicMaterial({color:glass?'#4c7c88':'#466855',transparent:true,opacity:0}));l.rotation.copy(m.rotation);lines.add(l);
+  if(!glass)h.walls.push({a:[x1,z1],b:[x2,z2],thickness,bottom,top,minx:Math.min(x1,x2)-thickness/2,maxx:Math.max(x1,x2)+thickness/2,minz:Math.min(z1,z2)-thickness/2,maxz:Math.max(z1,z2)+thickness/2});
  }
+ for(const s of segments){
+  const ax=wx(s.a[0]),az=wz(s.a[1]),bx=wx(s.b[0]),bz=wz(s.b[1]),height=s.height||2.8;if(Math.hypot(bx-ax,bz-az)<.025)continue;
+  let cursor=0;for(const o of [...(s.openings||[])].sort((a,b)=>a.from-b.from)){
+   piece(s,ax,az,bx,bz,cursor,o.from,0,height);
+   piece(s,ax,az,bx,bz,o.from,o.to,0,o.sill);
+   piece(s,ax,az,bx,bz,o.from,o.to,o.sill+o.height,height,'lintel');
+   if(o.kind==='window'){
+    piece(s,ax,az,bx,bz,o.from,o.to,o.sill,o.sill+.045,'frame');
+    piece(s,ax,az,bx,bz,o.from,o.to,o.sill+o.height-.045,o.sill+o.height,'frame');
+    const mid=(o.from+o.to)/2,bar=Math.min(.006,(o.to-o.from)/12);piece(s,ax,az,bx,bz,mid-bar,mid+bar,o.sill,o.sill+o.height,'frame');
+    piece(s,ax,az,bx,bz,o.from,o.to,o.sill+.045,o.sill+o.height-.045,'window');
+   }cursor=o.to;
+  }piece(s,ax,az,bx,bz,cursor,1,0,height);
+ }
+
  paper.geometry.dispose();paper.geometry=new T.PlaneGeometry(w,d);paperMat.map.dispose();paperMat.map=new T.CanvasTexture(canvas);paperMat.map.colorSpace=T.SRGBColorSpace;paperMat.map.anisotropy=8;paperMat.needsUpdate=true;
  backing.geometry.dispose();backing.geometry=new T.BoxGeometry(w,.025,d);
  const m=Math.max(w,d);startP.copy(center).add(new T.Vector3(0,m*1.42,0));startL.copy(center).add(new T.Vector3(0,0,-.0001));endP.copy(center).add(new T.Vector3(m*.68,m*.92,m*1.04));endL.copy(center);q0.copy(qAt(startP,startL));q1.copy(qAt(endP,endL));
- const px=wx(entry[0]),pz=wz(entry[1]);h.rooms.splice(0,h.rooms.length,{name:'图中空间',x:center.x-w/2,z:center.z-d/2,w,d,point:[px,pz],look:[px+.7,pz+.8],desc:'上传图纸生成的墙体初稿'});
- const list=$('#flyUI .roomlist');list.replaceChildren();const b=document.createElement('button');b.textContent='图中空间 ↘';b.onclick=()=>fly.room(h.rooms[0]);list.append(b);
+ const px=wx(entry[0]),pz=wz(entry[1]);const entire={name:'整张户型',x:center.x-w/2,z:center.z-d/2,w,d,point:[px,pz],look:[px+.7,pz+.8],desc:calibrated?'图纸比例已校准':'比例为估算，请核对'};
+ const named=roomAreas.map(r=>({name:String(r.name||'房间').slice(0,20),x:wx(r.x),z:wz(r.y),w:r.w*metersPerPixel,d:r.d*metersPerPixel,point:[wx(r.x+r.w/2),wz(r.y+r.d/2)],look:[wx(r.x+r.w/2),wz(r.y+r.d/2)-1],desc:'手动圈定的聚焦范围，非房间净尺寸'}));
+ h.rooms.splice(0,h.rooms.length,entire,...named);
+ const list=$('#flyUI .roomlist');list.replaceChildren();for(const r of h.rooms){const b=document.createElement('button');b.textContent=r.name+' ↘';b.onclick=()=>fly.room(r);list.append(b)}
  $('#flyIn').onclick=()=>fly.room(h.rooms[0]);$('#paperFlyIn').onclick=()=>fly.room(h.rooms[0]);
  $('#homeSky').onclick=()=>{const p=endP.clone(),q=q1.clone();fly.setCamera(p,q)};
  const pc=window.__fusion?.planCamera;if(pc){pc.position.set(center.x,60,center.z);pc.lookAt(center);pc.userData.uploadHalf=Math.max(d*.56,w/(innerWidth/innerHeight)*.56);}
@@ -56366,7 +56389,7 @@ document.querySelector('#viewDeck summary').title='未标尺寸与装修为示�
 })();
 </script><script>(()=>{
 const $=s=>document.querySelector(s),h=__home,fly=__fly;
-let imageCanvas=null,segments=[],pending=null,mode='erase',entry=null,calibration=[],applied=null,busy=false,revision=0;
+let imageCanvas=null,segments=[],pending=null,mode='erase',entry=null,calibration=[],applied=null,busy=false,revision=0,roomAreas=[];
 const style=document.createElement('style');style.textContent=`
 #openingUI #uploadPlan{position:absolute;top:88px;left:49px;border:1px solid #36574755;border-radius:3px;background:#f8f5eccc;padding:10px 15px;font-size:11px;letter-spacing:1px;color:#315e52}
 #openingUI #uploadPlan:hover{background:#fff9ed}#uploadBadge{position:absolute;left:49px;top:136px;font-size:10px;letter-spacing:1px;color:#826e54;max-width:250px;line-height:1.7}
@@ -56383,15 +56406,16 @@ const upload=document.createElement('button');upload.id='uploadPlan';upload.text
 const badge=document.createElement('div');badge.id='uploadBadge';badge.hidden=true;$('#openingUI').append(badge);
 const uploadFly=document.createElement('button');uploadFly.id='uploadPlanFly';uploadFly.textContent='上传户型';$('#flyUI .actions').prepend(uploadFly);
 const dialog=document.createElement('div');dialog.id='planDialog';dialog.hidden=true;dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','planTitle');
-dialog.innerHTML=`<section id="planPanel"><header><h2 id="planTitle">换一纸，成新邸</h2><button id="planClose" aria-label="关闭上传窗口">×</button></header><input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden><div id="planDrop"><button id="planChoose">选择户型图 ↗</button><p>或将图片拖到这里<br>PNG / JPG / WebP · 最大 15 MB</p></div><div id="planTools" hidden><button id="planChooseAgain">换图</button><button id="planErase" aria-pressed="true">点线删墙</button><button id="planDraw" aria-pressed="false">两点补墙</button><button id="planEntry" aria-pressed="false">入户位置</button><button id="planUndo">撤销</button><label>识别深度<input id="planThreshold" aria-label="识别深度" type="range" min="70" max="235" value="155"></label><button id="planDetect">重新识别</button><span id="planCount"></span></div><div id="planPreviewWrap" hidden><canvas id="planPreview"></canvas></div><p id="planHint" role="status" aria-live="polite">清晰、正视的黑白户型图，识别效果更好。</p><div id="planScale" hidden><label>整张图宽度 <input id="planWidth" type="number" min="2" max="60" step="0.1" value="12"> m</label><small id="planScaleState">暂按 12 m 估算，可用已知长度校准</small><label>已知长度 <input id="planKnown" type="number" min="0.1" max="50" step="0.1" value="3"> m</label><button id="planCalibrate">点选两点校准</button></div><footer id="planFooter"><p>图片仅在本机处理，刷新后清除。<br>生成墙体初稿，门窗与家具需后续细化。</p><button id="planApply" disabled>放到纸上 ↗</button></footer></section>`;document.body.append(dialog);
+dialog.innerHTML=`<section id="planPanel"><header><h2 id="planTitle">换一纸，成新邸</h2><button id="planClose" aria-label="关闭上传窗口">×</button></header><input type="file" id="planFile" accept="image/png,image/jpeg,image/webp" hidden><div id="planDrop"><button id="planChoose">选择户型图 ↗</button><p>或将图片拖到这里<br>PNG / JPG / WebP · 最大 15 MB</p></div><div id="planTools" hidden><button id="planChooseAgain">换图</button><button id="planErase" aria-pressed="true">点线删墙</button><button id="planDraw" aria-pressed="false">两点补墙</button><button id="planEntry" aria-pressed="false">入户位置</button><button id="planUndo">撤销</button><label>识别深度<input id="planThreshold" aria-label="识别深度" type="range" min="70" max="235" value="155"></label><button id="planDetect">重新识别</button><span id="planCount"></span></div><div id="planPreviewWrap" hidden><canvas id="planPreview"></canvas></div><p id="planHint" role="status" aria-live="polite">清晰、正视的黑白户型图，识别效果更好。</p><div id="planScale" hidden><label>整张图宽度 <input id="planWidth" type="number" min="2" max="60" step="0.1" value="12"> m</label><small id="planScaleState">暂按 12 m 估算，可用已知长度校准</small><label>已知长度 <input id="planKnown" type="number" min="0.1" max="50" step="0.1" value="3"> m</label><button id="planCalibrate">点选两点校准</button></div><footer id="planFooter"><p>图片仅在本机处理，刷新后清除。<br>生成墙体初稿，可校正尺寸、门窗与墙体；家具暂不自动生成。</p><button id="planApply" disabled>放到纸上 ↗</button></footer></section>`;document.body.append(dialog);
 const preview=$('#planPreview'),ctx=preview.getContext('2d'),history=[];
 function hint(text,error=false){$('#planHint').textContent=text;$('#planHint').classList.toggle('error',error)}
-function save(){history.push({segments:segments.map(s=>({...s,a:[...s.a],b:[...s.b]})),entry:entry&&[...entry]});if(history.length>40)history.shift()}
+function save(){history.push({segments:JSON.parse(JSON.stringify(segments)),roomAreas:JSON.parse(JSON.stringify(roomAreas)),entry:entry&&[...entry],width:$('#planWidth').value,calibrated:$('#planScaleState').dataset.calibrated});if(history.length>40)history.shift()}
 function count(){$('#planCount').textContent=segments.length+' 段墙线';$('#planApply').disabled=busy||!imageCanvas||segments.length===0}
-function draw(){if(!imageCanvas)return;preview.width=imageCanvas.width;preview.height=imageCanvas.height;ctx.drawImage(imageCanvas,0,0);const line=Math.max(2,preview.width/400);ctx.lineCap='round';for(const s of segments){ctx.strokeStyle='#a5513ecc';ctx.lineWidth=Math.max(line,s.thickness||line);ctx.beginPath();ctx.moveTo(...s.a);ctx.lineTo(...s.b);ctx.stroke()}if(entry){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...entry,line*3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff6e7';ctx.lineWidth=line;ctx.stroke()}for(const p of [...calibration,...(pending?[pending]:[])]){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...p,line*2.5,0,Math.PI*2);ctx.fill()}count()}
+function draw(){if(!imageCanvas)return;preview.width=imageCanvas.width;preview.height=imageCanvas.height;ctx.drawImage(imageCanvas,0,0);const line=Math.max(2,preview.width/400);ctx.lineCap='round';for(const s of segments){ctx.strokeStyle='#a5513ecc';ctx.lineWidth=Math.max(line,s.thickness||line);ctx.beginPath();ctx.moveTo(...s.a);ctx.lineTo(...s.b);ctx.stroke()}if(entry){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...entry,line*3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff6e7';ctx.lineWidth=line;ctx.stroke()}for(const p of [...calibration,...(pending?[pending]:[])]){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...p,line*2.5,0,Math.PI*2);ctx.fill()}window.__planCorrection?.draw(ctx);count()}
 function setMode(next){mode=next;pending=null;calibration=[];for(const [id,name]of [['planErase','erase'],['planDraw','draw'],['planEntry','entry'],['planCalibrate','calibrate']])$('#'+id).setAttribute('aria-pressed',String(mode===name));hint(next==='erase'?'点击朱砂色墙线可删除误识别；需要时用“两点补墙”。':next==='draw'?'依次点击墙体的两端，补一段墙。':next==='entry'?'点击图中空地，作为进入房间的位置。':'输入已知长度，再点选这段长度的两个端点。');draw()}
 function distance(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],v=dx*dx+dy*dy,t=v?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/v)):0;return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)}
 preview.onclick=e=>{if(!imageCanvas||busy)return;const r=preview.getBoundingClientRect(),p=[(e.clientX-r.left)*preview.width/r.width,(e.clientY-r.top)*preview.height/r.height];
+ if(window.__planCorrection?.click(p,mode)){draw();return;}
  if(mode==='entry'){save();entry=p;hint('入户位置已更新。');}
  else if(mode==='erase'){let best=-1,d=Math.max(8,preview.width/r.width*10);segments.forEach((s,i)=>{const n=distance(p,s.a,s.b);if(n<d){d=n;best=i}});if(best>=0){save();segments.splice(best,1)}else hint('附近没有墙线，可切换“两点补墙”。');}
  else if(mode==='draw'){if(!pending)pending=p;else{if(Math.hypot(p[0]-pending[0],p[1]-pending[1])>5){save();segments.push({a:pending,b:p,thickness:3})}pending=null;}}
@@ -56414,7 +56438,7 @@ async function recognize(){if(!imageCanvas||busy)return;busy=true;count();hint('
 async function load(file){
  if(busy||!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)){hint('请选择 PNG、JPG 或 WebP 图片。',true);return}if(file.size>15*1024*1024){hint('图片超过 15 MB，请压缩后重试。',true);return}
  const current=++revision;let loaded=false;busy=true;count();hint('正在读取图纸…');const url=URL.createObjectURL(file);
- try{const img=new Image();img.src=url;await img.decode();if(current!==revision)return;if(img.naturalWidth*img.naturalHeight>40000000)throw Error('图片分辨率过大，请缩小后重试。');const scale=Math.min(1,1100/Math.max(img.naturalWidth,img.naturalHeight));if(Math.min(img.naturalWidth,img.naturalHeight)<80)throw Error('图片过小，请选择清晰的户型图。');const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);const cc=c.getContext('2d');cc.fillStyle='#fff';cc.fillRect(0,0,c.width,c.height);cc.drawImage(img,0,0,c.width,c.height);imageCanvas=c;loaded=true;segments=[];entry=[c.width/2,c.height/2];history.length=0;pending=null;calibration=[];$('#planWidth').value='12';$('#planScaleState').textContent='暂按 12 m 估算，可用已知长度校准';delete $('#planScaleState').dataset.calibrated;$('#planDrop').hidden=true;$('#planDrop').style.display='none';for(const id of ['planTools','planPreviewWrap','planScale'])$('#'+id).hidden=false;setMode('erase');draw();}
+ try{const img=new Image();img.src=url;await img.decode();if(current!==revision)return;if(img.naturalWidth*img.naturalHeight>40000000)throw Error('图片分辨率过大，请缩小后重试。');const scale=Math.min(1,1100/Math.max(img.naturalWidth,img.naturalHeight));if(Math.min(img.naturalWidth,img.naturalHeight)<80)throw Error('图片过小，请选择清晰的户型图。');const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*scale);c.height=Math.round(img.naturalHeight*scale);const cc=c.getContext('2d');cc.fillStyle='#fff';cc.fillRect(0,0,c.width,c.height);cc.drawImage(img,0,0,c.width,c.height);imageCanvas=c;loaded=true;segments=[];entry=[c.width/2,c.height/2];history.length=0;roomAreas=[];pending=null;calibration=[];window.dispatchEvent(new Event('planimageload'));$('#planWidth').value='12';$('#planScaleState').textContent='暂按 12 m 估算，可用已知长度校准';delete $('#planScaleState').dataset.calibrated;$('#planDrop').hidden=true;$('#planDrop').style.display='none';for(const id of ['planTools','planPreviewWrap','planScale'])$('#'+id).hidden=false;setMode('erase');draw();}
  catch(e){hint('图纸读取失败：'+e.message,true)}finally{URL.revokeObjectURL(url);busy=false;count()}
  if(current===revision&&loaded)await recognize();
 }
@@ -56424,12 +56448,67 @@ upload.onclick=uploadFly.onclick=open;$('#planClose').onclick=close;dialog.oncli
 for(const id of ['planChoose','planChooseAgain'])$('#'+id).onclick=()=>$('#planFile').click();
 $('#planFile').onchange=e=>{load(e.target.files[0]);e.target.value=''};
 for(const [id,m] of [['planErase','erase'],['planDraw','draw'],['planEntry','entry'],['planCalibrate','calibrate']])$('#'+id).onclick=()=>setMode(m);
-$('#planDetect').onclick=recognize;$('#planUndo').onclick=()=>{const old=history.pop();if(old){segments=old.segments;entry=old.entry;draw()}};
+$('#planDetect').onclick=recognize;$('#planUndo').onclick=()=>{const old=history.pop();if(old){segments=old.segments;roomAreas=old.roomAreas||[];entry=old.entry;$('#planWidth').value=old.width;if(old.calibrated)$('#planScaleState').dataset.calibrated=old.calibrated;else delete $('#planScaleState').dataset.calibrated;window.__planCorrection?.resetSelection();draw()}};
 $('#planWidth').oninput=()=>{$('#planScaleState').textContent='已手动设置整张图宽度';delete $('#planScaleState').dataset.calibrated};
 for(const target of [$('#planDrop'),$('#planPanel')]){target.ondragover=e=>{e.preventDefault();$('#planDrop').classList.add('dragging')};target.ondragleave=()=>$('#planDrop').classList.remove('dragging');target.ondrop=e=>{e.preventDefault();e.stopPropagation();$('#planDrop').classList.remove('dragging');load(e.dataTransfer.files[0])}}
-$('#planApply').onclick=()=>{const width=+$('#planWidth').value;if(!Number.isFinite(width)||width<2||width>60){hint('请输入 2–60 m 范围内的整张图宽度，或使用两点校准。',true);return}if(imageCanvas.height/imageCanvas.width*width>60){hint('图纸过于狭长，请裁剪图片或重新校准比例。',true);return}if(!segments.length){hint('请先识别或手动补充墙线。',true);return}try{const data={canvas:imageCanvas,segments:segments.map(s=>({...s,a:[...s.a],b:[...s.b]})),metersPerPixel:width/imageCanvas.width,entry:entry||[imageCanvas.width/2,imageCanvas.height/2]};__opening.replacePlan(data);applied=data;badge.textContent='墙体初稿 · '+($('#planScaleState').dataset.calibrated?'比例已校准':'比例请核对');badge.hidden=false;dialog.hidden=true;upload.textContent='↻ 调整图纸';$('#growHouse').focus();}catch(e){hint('生成失败：'+e.message,true)}};
+$('#planApply').onclick=()=>{const width=+$('#planWidth').value;if(!Number.isFinite(width)||width<2||width>60){hint('请输入 2–60 m 范围内的整张图宽度，或使用两点校准。',true);return}if(imageCanvas.height/imageCanvas.width*width>60){hint('图纸过于狭长，请裁剪图片或重新校准比例。',true);return}if(!segments.length){hint('请先识别或手动补充墙线。',true);return}try{const data={canvas:imageCanvas,segments:JSON.parse(JSON.stringify(segments)),roomAreas:JSON.parse(JSON.stringify(roomAreas)),calibrated:$('#planScaleState').dataset.calibrated==='true',metersPerPixel:width/imageCanvas.width,entry:entry||[imageCanvas.width/2,imageCanvas.height/2]};__opening.replacePlan(data);applied=data;badge.textContent='户型校正稿 · '+($('#planScaleState').dataset.calibrated?'比例已校准':'比例请核对');badge.hidden=false;dialog.hidden=true;upload.textContent='↻ 调整图纸';uploadFly.textContent='校正户型';$('#growHouse').focus();}catch(e){hint('生成失败：'+e.message,true)}};
 document.addEventListener('keydown',e=>{if(dialog.hidden)return;if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const nodes=[...dialog.querySelectorAll('button:not(:disabled),input:not([type=file])')].filter(n=>n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}e.stopImmediatePropagation()},true);
+window.__planEditor={save,draw,hint,setMode,distance,get mode(){return mode},get image(){return imageCanvas},get segments(){return segments},get rooms(){return roomAreas},get scale(){return +$('#planWidth').value/(imageCanvas?.width||1)}};
 window.__uploadPlan={detect,get applied(){return applied},get segments(){return segments},get image(){return imageCanvas}};
+})();
+</script><script>(()=>{
+const e=__planEditor,$=s=>document.querySelector(s);let selected=-1,pending=null,tool='',measurementScale=NaN;
+const tools=$('#planTools');
+for(const [id,label,mode]of [['planSelect','选墙改尺寸','select'],['planDoor','开门洞','door'],['planWindow','开窗洞','window'],['planRoom','圈定房间','room'],['planEndpoint','调整端点','endpoint']]){
+ const b=document.createElement('button');b.id=id;b.textContent=label;b.dataset.correctionMode=mode;b.setAttribute('aria-pressed','false');tools.append(b);b.onclick=()=>choose(mode);
+}
+const panel=document.createElement('div');panel.id='planProperties';panel.hidden=true;panel.innerHTML=`<div class="propertyGroup"><strong>选中墙体</strong><label>墙长 <input id="wallLength" type="number" min="0.1" max="60" step="0.01"> m</label><label>墙厚 <input id="wallThickness" type="number" min="0.06" max="0.6" step="0.01" value="0.18"> m</label><label>墙高 <input id="wallHeight" type="number" min="1" max="6" step="0.05" value="2.8"> m</label><button id="wallApply">更新墙体</button><button id="wallClearOpenings">清除该墙门窗</button></div><div class="propertyGroup"><strong>门窗与房间</strong><label>洞口宽 <input id="openingWidth" type="number" min="0.3" max="8" step="0.05" value="0.9"> m</label><label>洞口高 <input id="openingHeight" type="number" min="0.3" max="4" step="0.05" value="2.1"> m</label><label>窗台高 <input id="openingSill" type="number" min="0" max="3" step="0.05" value="0.9"> m</label><label>房间名 <input id="planRoomName" type="text" maxlength="20" value="房间 1"></label><button id="roomRemove">删除最近房间</button></div><p id="planPropertyNote">先校准图纸比例。墙长为所描墙线长度；房间框用于聚焦，不代表净尺寸。</p>`;
+$('#planPreviewWrap').before(panel);
+const css=document.createElement('style');css.textContent='#planProperties{border:1px solid #36574722;background:#ebe8dd;padding:12px;margin:10px 0}#planProperties[hidden]{display:none}.propertyGroup{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:5px 0 10px}.propertyGroup strong{font-size:11px;margin-right:8px}.propertyGroup label{display:flex;align-items:center;gap:5px;font-size:10px}#planRoomName{width:90px;border:1px solid #36574744;background:#fffaf0;padding:8px;color:#315e52}#planPropertyNote{font-size:10px;color:#7a806d;line-height:1.8;margin:0}#planPreview{touch-action:manipulation}';document.head.append(css);
+const numeric=(id,min,max)=>{const n=+$('#'+id).value;return Number.isFinite(n)&&n>=min&&n<=max?n:null};
+function choose(mode){e.setMode(mode);tool=mode;pending=null;for(const b of tools.querySelectorAll('[data-correction-mode]'))b.setAttribute('aria-pressed',String(b.dataset.correctionMode===mode));
+ e.hint({select:'点击墙线，输入准确的墙长、墙厚和墙高。',door:'设置门洞宽高，再点击墙线上的门洞中心。',window:'设置窗洞宽高与窗台高，再点击墙线上的窗洞中心。',room:'输入房间名，再点击房间范围的两个对角。范围仅用于聚焦。',endpoint:'先点击墙体端点，再点击它应在的位置。'}[mode]);
+ if(mode==='door'){$('#openingWidth').value='.9';$('#openingHeight').value='2.1'}
+ if(mode==='window'){$('#openingWidth').value='1.2';$('#openingHeight').value='1.2'}e.draw();
+}
+function nearest(p){let best=-1,d=Math.max(8,e.image.width/$('#planPreview').getBoundingClientRect().width*10);e.segments.forEach((s,i)=>{const n=e.distance(p,s.a,s.b);if(n<d){d=n;best=i}});return best}
+function select(i){selected=i;const s=e.segments[i];if(!s)return;$('#wallLength').value=(Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1])*e.scale).toFixed(3);$('#wallThickness').value=(s.wallThickness||Math.max(.09,Math.min(.32,(s.thickness||3)*e.scale))).toFixed(3);$('#wallHeight').value=s.height||2.8}
+function snap(p){let best=p,d=12;for(const s of e.segments)for(const q of [s.a,s.b]){const dist=Math.hypot(p[0]-q[0],p[1]-q[1]);if(dist<d){d=dist;best=[...q]}}return best}
+function click(p,mode){
+ if(!Number.isFinite(e.scale)||e.scale<=0){e.hint('请先输入有效的图纸宽度，或校准比例。',true);return true}
+ if(mode!==tool){pending=null;tool=mode;for(const b of tools.querySelectorAll('[data-correction-mode]'))b.setAttribute('aria-pressed','false')}
+ if(mode==='select'){const i=nearest(p);select(i);e.hint(i<0?'请点击朱砂色墙线。':'已选中墙体，修改数值后点击“更新墙体”。');return true}
+ if(mode==='endpoint'){
+  if(!pending){const i=nearest(p);if(i<0){e.hint('请先点击需要调整的墙体端点。');return true}const s=e.segments[i],end=Math.hypot(p[0]-s.a[0],p[1]-s.a[1])<Math.hypot(p[0]-s.b[0],p[1]-s.b[1])?'a':'b';pending={i,end,p:[...s[end]]};select(i)}
+  else{const s=e.segments[pending.i],next=snap(p),other=s[pending.end==='a'?'b':'a'];if(Math.hypot(next[0]-other[0],next[1]-other[1])<5){e.hint('墙体过短，请重新点选。',true);return true}e.save();s[pending.end]=next;select(pending.i);pending=null;e.hint('端点已更新；请核对相邻墙体是否连接。')}return true;
+ }
+ if(mode==='room'){
+  if(!pending)pending={p};else{const a=pending.p,x=Math.min(a[0],p[0]),y=Math.min(a[1],p[1]),w=Math.abs(a[0]-p[0]),d=Math.abs(a[1]-p[1]);if(w*e.scale<.4||d*e.scale<.4){e.hint('房间范围太小，请重新选择对角点。',true);pending=null;return true}e.save();e.rooms.push({name:$('#planRoomName').value.trim()||'房间 '+(e.rooms.length+1),x,y,w,d});pending=null;$('#planRoomName').value='房间 '+(e.rooms.length+1);e.hint('房间范围已保存，生成后可点击聚焦。')}return true;
+ }
+ if(mode==='door'||mode==='window'){
+  const i=nearest(p);if(i<0){e.hint('请点击墙体上的洞口中心。',true);return true}const s=e.segments[i],len=Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1]),width=numeric('openingWidth',.3,8),height=numeric('openingHeight',.3,4),sill=mode==='door'?0:numeric('openingSill',0,3),wallHeight=s.height||2.8;
+  if(width===null||height===null||sill===null||height+sill>wallHeight-.05||width/e.scale>len-4){e.hint('洞口尺寸须小于墙体，并且窗台高＋洞口高须低于墙高。',true);return true}
+  const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],half=width/e.scale/len/2,margin=2/len,t=Math.max(half+margin,Math.min(1-half-margin,((p[0]-s.a[0])*dx+(p[1]-s.a[1])*dy)/(len*len))),opening={kind:mode,from:t-half,to:t+half,sill,height};
+  if((s.openings||[]).some(o=>opening.from<o.to+.005&&opening.to>o.from-.005)){e.hint('此处已有门窗，洞口不能重叠；可先点击删除。',true);return true}
+  e.save();(s.openings||(s.openings=[])).push(opening);s.openings.sort((a,b)=>a.from-b.from);select(i);e.hint((mode==='door'?'门洞':'窗洞')+'已加入，宽 '+width.toFixed(2)+' m；三维会按此位置开洞。');return true;
+ }
+ if(mode==='erase'){const i=nearest(p),s=e.segments[i];if(s?.openings?.length){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],t=((p[0]-s.a[0])*dx+(p[1]-s.a[1])*dy)/(dx*dx+dy*dy),j=s.openings.findIndex(o=>t>=o.from&&t<=o.to);if(j>=0){e.save();s.openings.splice(j,1);e.hint('已删除洞口，墙体恢复。');return true}}selected=-1;return false}
+ if(mode==='draw'){
+  p=snap(p);if(!pending)pending={p};else{const a=pending.p;if(Math.abs(p[0]-a[0])<6)p[0]=a[0];if(Math.abs(p[1]-a[1])<6)p[1]=a[1];if(Math.hypot(a[0]-p[0],a[1]-p[1])>5){e.save();e.segments.push({a:[...a],b:p,thickness:3,wallThickness:.18,height:2.8})}pending=null}return true;
+ }return false;
+}
+function draw(ctx){panel.hidden=!e.image;if(e.scale!==measurementScale){measurementScale=e.scale;if(selected>=0)select(selected)}const scale=Math.max(2,e.image.width/400);
+ for(const r of e.rooms){ctx.fillStyle='#315e521c';ctx.fillRect(r.x,r.y,r.w,r.d);ctx.strokeStyle='#315e52';ctx.lineWidth=scale;ctx.strokeRect(r.x,r.y,r.w,r.d);ctx.fillStyle='#315e52';ctx.font=Math.max(12,e.image.width/65)+'px Microsoft YaHei';ctx.fillText(r.name,r.x+6,r.y+19)}
+ for(let i=0;i<e.segments.length;i++){const s=e.segments[i];if(i===selected){ctx.strokeStyle='#315e52';ctx.lineWidth=scale*2;ctx.beginPath();ctx.moveTo(...s.a);ctx.lineTo(...s.b);ctx.stroke();for(const p of [s.a,s.b]){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...p,scale*3,0,Math.PI*2);ctx.fill()}}
+  for(const o of s.openings||[]){ctx.strokeStyle=o.kind==='door'?'#d6a33c':'#4c98ac';ctx.lineWidth=Math.max(scale*3,s.thickness||3);ctx.beginPath();ctx.moveTo(s.a[0]+(s.b[0]-s.a[0])*o.from,s.a[1]+(s.b[1]-s.a[1])*o.from);ctx.lineTo(s.a[0]+(s.b[0]-s.a[0])*o.to,s.a[1]+(s.b[1]-s.a[1])*o.to);ctx.stroke()}
+ }if(pending){ctx.fillStyle='#315e52';ctx.beginPath();ctx.arc(...pending.p,scale*3,0,Math.PI*2);ctx.fill()}
+}
+$('#wallApply').onclick=()=>{const s=e.segments[selected];if(!s){e.hint('请先用“选墙改尺寸”选中墙体。',true);return}const length=numeric('wallLength',.1,60),thickness=numeric('wallThickness',.06,.6),height=numeric('wallHeight',1,6);if(length===null||thickness===null||height===null||(s.openings||[]).some(o=>o.sill+o.height>height-.05)){e.hint('请输入有效尺寸，墙高须高于门窗洞口。',true);return}const old=Math.hypot(s.b[0]-s.a[0],s.b[1]-s.a[1]),ratio=length/e.scale/old,b=[s.a[0]+(s.b[0]-s.a[0])*ratio,s.a[1]+(s.b[1]-s.a[1])*ratio];if(b[0]<0||b[1]<0||b[0]>e.image.width||b[1]>e.image.height){e.hint('修改后端点超出图纸，请先调整起点或图纸比例。',true);return}e.save();s.b=b;s.wallThickness=thickness;s.height=height;select(selected);e.draw();e.hint('墙体尺寸已更新，以起点固定、另一端延伸；相邻墙端点可继续调整。')};
+$('#wallClearOpenings').onclick=()=>{const s=e.segments[selected];if(!s)return;e.save();s.openings=[];e.draw();e.hint('该墙门窗已清除，可撤销。')};
+$('#roomRemove').onclick=()=>{if(!e.rooms.length)return;e.save();e.rooms.pop();e.draw()};
+function resetSelection(){selected=-1;pending=null}addEventListener('planimageload',resetSelection);
+const widthChanged=$('#planWidth').oninput;$('#planWidth').oninput=event=>{widthChanged(event);e.draw()};
+window.__planCorrection={click,draw,resetSelection,get selected(){return selected}};
 })();
 </script><script>(()=>{
 const fly=__fly,opening=__opening,points=new Map();let pinch=null,suppress=false;
@@ -56490,6 +56569,41 @@ function tick(){requestAnimationFrame(tick);if(!opening.ready)return;if(!configu
  const dim=__fusion.nightMix||0;opening.ground.material.color.set('#e7e2d8').lerp(new T.Color('#344038'),dim);props.visible=true;shadow.material.opacity=.13*(1-dim);
 }
 requestAnimationFrame(tick);window.__deskStudy={get pencil(){return pencil},get scan(){return scan},props,configure};
+})();
+</script><script>(()=>{
+const T=__three,h=__home,fly=__fly,opening=__opening,fusion=__fusion,$=s=>document.querySelector(s);
+let selected=null,motion=null,last=performance.now(),press=null,lastOcclusion=0;const faded=new Set(),amount=new Map();
+const panel=document.createElement('details');panel.id='roomFocusPanel';panel.open=innerWidth>650;panel.hidden=true;panel.innerHTML='<summary>房间聚焦</summary><div id="focusRooms"></div><div id="focusInfo">点击房间，查看空间关系</div><button id="focusClear">返回全景</button>';document.body.append(panel);
+const css=document.createElement('style');css.textContent='#roomFocusPanel{position:fixed;right:28px;bottom:84px;width:208px;z-index:6;background:#f8f4e9ed;border:1px solid #36574733;backdrop-filter:blur(16px);padding:13px;color:#315e52;font:11px Microsoft YaHei}#roomFocusPanel[hidden]{display:none}#roomFocusPanel summary{cursor:pointer;letter-spacing:1px}#focusRooms{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:165px;overflow:auto;margin-top:12px}#roomFocusPanel button{border:1px solid #36574733;background:#fffcf3;color:#315e52;font:10px Microsoft YaHei;padding:9px 5px;cursor:pointer;border-radius:2px}#roomFocusPanel button[aria-pressed=true]{background:#315e52;color:#fff8e9}#focusInfo{font-size:10px;line-height:1.8;margin:10px 0;color:#7a806d}#focusClear{width:100%}@media(max-width:650px){#roomFocusPanel{right:18px;bottom:78px;width:160px;padding:10px}#focusRooms{max-height:130px}#focusInfo{font-size:9px}}';document.head.append(css);
+const highlight=new T.Group();highlight.name='房间聚焦范围';h.scene.add(highlight);highlight.visible=false;
+function refresh(){const list=$('#focusRooms');list.replaceChildren();for(const room of h.rooms){const b=document.createElement('button');b.textContent=room.name;b.setAttribute('aria-pressed',String(room===selected));b.onclick=()=>focus(room);list.append(b)}}refresh();
+function highlightRoom(room){for(const c of [...highlight.children]){c.geometry.dispose();c.material.dispose();highlight.remove(c)}const m=new T.Mesh(new T.PlaneGeometry(room.w,room.d),new T.MeshBasicMaterial({color:'#a6c4ae',transparent:true,opacity:.13,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(room.x+room.w/2,.068,room.z+room.d/2);highlight.add(m);const pts=[[room.x,room.z],[room.x+room.w,room.z],[room.x+room.w,room.z+room.d],[room.x,room.z+room.d]].map(p=>new T.Vector3(p[0],.075,p[1]));highlight.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts),new T.LineBasicMaterial({color:'#a5513e',transparent:true,opacity:.8,depthWrite:false})));highlight.visible=true}
+function focus(room){if(opening.active||!h.rooms.includes(room))return;selected=room;fly.cancelMotion();highlightRoom(room);refresh();if(innerWidth<=650){panel.open=false;$('#viewDeck').open=false}$('#focusInfo').textContent=room.name+' · 图纸分区 '+room.w.toFixed(2)+' × '+room.d.toFixed(2)+' m'+(h.uploaded?'；圈定范围非净尺寸':'；分区尺寸非净尺寸');
+ if(fusion.plan){const c=fusion.planCamera,aspect=innerWidth/innerHeight;const viewHalf=Math.max(room.d*.72,room.w/aspect*.72,1.2);motion={time:0,plan:true,from:c.position.clone(),to:new T.Vector3(room.x+room.w/2,c.position.y,room.z+room.d/2),zoom:c.zoom,toZoom:Math.min(5,(c.top-c.bottom)/2/viewHalf)};fly.blocked=true;}
+ else{const center=new T.Vector3(room.x+room.w/2,.3,room.z+room.d/2),size=Math.max(room.w,room.d,2),fit=Math.max(1,1/(innerWidth/innerHeight));const to=center.clone().add(new T.Vector3(size*.55,size*.95,size*.85).multiplyScalar(fit));const clone=fly.camera.clone();clone.position.copy(to);clone.lookAt(center);motion={time:0,from:fly.camera.position.clone(),to,q:fly.camera.quaternion.clone(),toQ:clone.quaternion.clone()};fly.blocked=true;}
+ lastOcclusion=0;
+}
+function clear(returnSky=false){selected=null;motion=null;highlight.visible=false;faded.clear();if(!opening.active)fly.blocked=fusion.plan;$('#focusInfo').textContent='点击房间，查看空间关系';refresh();if(returnSky){if(fusion.plan){fusion.planCamera.zoom=1;const p=opening.paper.position;fusion.planCamera.position.set(p.x,60,p.z);fusion.planCamera.updateProjectionMatrix()}else $('#homeSky').click()}}
+$('#focusClear').onclick=()=>clear(true);
+$('#roomsToggle').onclick=()=>{panel.open=!panel.open};$('#flyUI .roomlist').hidden=true;
+for(const id of ['homeSky','openReplay','paperFlyIn','uploadPlanFly'])$('#'+id)?.addEventListener('click',()=>clear(),true);
+for(const id of ['flatView','solidView']){const old=$('#'+id).onclick;$('#'+id).onclick=e=>{const room=selected;old.call($('#'+id),e);if(room)focus(room)}}
+$('#flyUI .roomlist').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const room=h.rooms.find(r=>b.textContent.startsWith(r.name+' '));if(room){e.stopImmediatePropagation();focus(room)}},true);
+const ray=new T.Raycaster(),plane=new T.Plane(new T.Vector3(0,1,0),0);
+function pick(x,y){const rect=h.renderer.domElement.getBoundingClientRect();ray.setFromCamera(new T.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),fusion.plan?fusion.planCamera:fly.camera);const point=ray.ray.intersectPlane(plane,new T.Vector3());if(!point)return null;return [...h.rooms].sort((a,b)=>a.w*a.d-b.w*b.d).find(r=>point.x>=r.x&&point.x<=r.x+r.w&&point.z>=r.z&&point.z<=r.z+r.d)}
+const touches=new Set();
+document.addEventListener('pointerdown',e=>{if(e.target!==h.renderer.domElement||opening.active)return;if(e.isPrimary){touches.clear();press=null}touches.add(e.pointerId);if(touches.size>1){press=null;return}press={x:e.clientX,y:e.clientY,id:e.pointerId};if(motion){motion=null;fly.blocked=fusion.plan}},true);
+document.addEventListener('pointerup',e=>{touches.delete(e.pointerId);const p=press;press=null;if(!p||e.pointerId!==p.id||opening.active||__pinchZoom.active||Math.hypot(e.clientX-p.x,e.clientY-p.y)>6)return;const room=pick(e.clientX,e.clientY);if(room)focus(room)},true);
+document.addEventListener('pointercancel',e=>{touches.delete(e.pointerId);press=null},true);
+document.addEventListener('dblclick',e=>{if(e.target!==h.renderer.domElement||opening.active)return;e.stopImmediatePropagation();e.preventDefault();const room=pick(e.clientX,e.clientY);if(room)focus(room)},true);
+addEventListener('floorplanchange',()=>{clear();amount.clear();refresh()});
+function occlusion(){faded.clear();if(!selected||fusion.plan||opening.active)return;const walls=opening.snapshots.filter(s=>s.category==='wall'&&!s.ceiling&&!s.hidden&&s.mesh.visible);const points=[[.5,.5],[.15,.15],[.85,.15],[.15,.85],[.85,.85]].map(([x,z])=>new T.Vector3(selected.x+selected.w*x,.8,selected.z+selected.d*z));for(const p of points){const d=p.clone().sub(fly.camera.position),length=d.length();ray.set(fly.camera.position,d.normalize());ray.far=length-.12;for(const s of walls)if(ray.intersectObject(s.mesh,false).length)faded.add(s.mesh)}ray.far=Infinity;}
+function tick(now){requestAnimationFrame(tick);const dt=Math.min(.05,(now-last)/1000);last=now;panel.hidden=opening.active;if(opening.active){highlight.visible=false;faded.clear();return}highlight.visible=!!selected;
+ if(motion){const m=motion;m.time+=dt;const t=Math.min(1,m.time/.8),u=t*t*(3-2*t);if(m.plan){const c=fusion.planCamera;c.position.lerpVectors(m.from,m.to,u);c.zoom=T.MathUtils.lerp(m.zoom,m.toZoom,u);c.updateMatrixWorld();c.updateProjectionMatrix()}else fly.setCamera(m.from.clone().lerp(m.to,u),m.q.clone().slerp(m.toQ,u));if(t===1){motion=null;fly.blocked=fusion.plan}}
+ if(now-lastOcclusion>110){occlusion();lastOcclusion=now}
+ for(const s of opening.snapshots){if(s.category!=='wall'||s.ceiling)continue;const m=s.mesh,target=faded.has(m)?.14:1,a=(amount.get(m)??1)+(target-(amount.get(m)??1))*(1-Math.exp(-dt*9));amount.set(m,a);const opacity=s.opacity*(fusion.ghost?.18:1)*a;m.material.opacity=opacity;m.material.transparent=s.transparent||opacity<s.opacity-.001||fusion.ghost;m.material.depthWrite=(s.originalDepthWrite??s.depthWrite)&&a>.99&&!fusion.ghost;}
+}requestAnimationFrame(tick);
+window.__roomFocus={focus,clear,pick,get selected(){return selected},get transitioning(){return !!motion},get fadedCount(){return faded.size}};
 })();
 </script></body></html>
 
