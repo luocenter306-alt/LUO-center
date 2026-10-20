@@ -56239,7 +56239,7 @@ function play(){if(!ready||!manual&&active)return;active=true;manual=false;fly.b
 $('#growHouse').onclick=play;$('#paperTo3D').onclick=play;$('#paperView').onclick=reset;replay.onclick=reset;
 window.__opening={duration,snapshots:shots,get paper(){return paper},get ground(){return ground},get time(){return time},get paused(){return manual},get ready(){return ready},get active(){return active},seek(t){active=true;manual=true;fly.blocked=true;overlay.hidden=false;$('#growHouse').hidden=true;$('.riseProgress').hidden=false;sample(t)},play,finish,reset};
 async function init(){const image=$('#modal img');await image.decode();const c=document.createElement('canvas');c.width=1748;c.height=1236;const ctx=c.getContext('2d');ctx.drawImage(image,77,109,874,618,0,0,c.width,c.height);const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;texture.anisotropy=8;const w=874/36.7,d=618/37.55,geometry=new T.PlaneGeometry(w,d,40,28),positions=geometry.attributes.position;for(let i=0;i<positions.count;i++){const nx=Math.abs(positions.getX(i)/(w/2)),ny=Math.abs(positions.getY(i)/(d/2));positions.setZ(i,.028*Math.pow(nx*ny,5));}geometry.computeVertexNormals();paperMat=new T.MeshStandardMaterial({map:texture,roughness:.97,metalness:0,side:T.DoubleSide});paper=new T.Mesh(geometry,paperMat);paper.rotation.x=-Math.PI/2;paper.position.set(center.x,.018,center.z);paper.castShadow=paper.receiveShadow=true;h.scene.add(paper);backing=new T.Mesh(new T.BoxGeometry(w,.025,d),new T.MeshStandardMaterial({color:'#ece9df',roughness:1}));backing.position.set(center.x,-.0125,center.z);backing.castShadow=backing.receiveShadow=true;h.scene.add(backing);ground=new T.Mesh(new T.PlaneGeometry(200,200),new T.MeshStandardMaterial({color:'#eee8dc',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.11;ground.receiveShadow=true;h.scene.add(ground);ready=true;reset();}
-init().catch(e=>{console.error(e);$('#paperStage').textContent='图纸加载失败，请重新打开';});addEventListener('resize',()=>{if(active&&manual)sample(time)});function tick(now){requestAnimationFrame(tick);if(!ready||!active||manual)return;sample((now-origin)/1000);if(time>=duration)finish()}requestAnimationFrame(tick);
+init().catch(e=>{console.error(e);$('#paperStage').textContent='图纸加载失败，请重新打开';});addEventListener('resize',()=>{if(active&&manual)sample(time)});function tick(now){requestAnimationFrame(tick);if(!ready||!active||manual)return;sample((now-origin)/1000*2);if(time>=duration)finish()}requestAnimationFrame(tick);
 })();
 </script><script>// Feature study: ZWD11/house-plan-designer (MIT), ab7bb1c52eeb0056bfff782ba71bb9f5faa1e1ab.
 // Independent implementation for the existing cinematic apartment scene; no template code copied.
@@ -56276,7 +56276,10 @@ const style=document.createElement('style');
 style.textContent=`
 :root{--ink:#244c43;--cinnabar:#a84f3d;--linen:#f0ebdf}
 body{background:var(--linen)}
-#openingUI .paperCaption,#openingUI .paperNote,#openingUI .paperBrand small,#growHouse,#flyUI .logo small,#flyUI .note,#viewDeck .deckNote{display:none!important}
+#openingUI .paperCaption,#openingUI .paperNote,#openingUI .paperBrand small,#flyUI .logo small,#flyUI .note,#viewDeck .deckNote{display:none!important}
+#openingUI #growHouse:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:36px;min-width:245px;padding:17px 23px;bottom:44px;background:#2b4c42;border:1px solid #426456;border-radius:3px;color:#faf4e6;font-size:14px;letter-spacing:2px;box-shadow:0 8px 28px #244c4324}
+#openingUI #growHouse:hover{background:#365d50;box-shadow:0 10px 32px #244c4333}
+#openingUI #growHouse span{display:grid;place-items:center;width:28px;height:28px;margin:0;background:#a5513e;color:#fff2de;font-size:18px;border:1px solid #e6c7ad66;letter-spacing:0}
 #openingUI{color:var(--ink);z-index:4}
 #openingUI .paperBrand{left:49px;top:38px;font-family:'STSong','SimSun',serif;font-size:29px;letter-spacing:8px;line-height:1.4}
 #openingUI .paperBrand:after{content:'邸';display:inline-grid;place-items:center;width:23px;height:27px;margin-left:9px;vertical-align:4px;border:1px solid #a84f3dbb;color:var(--cinnabar);font:17px 'SimSun',serif;letter-spacing:0;transform:rotate(-5deg);border-radius:2px 1px 3px 1px}
@@ -56306,8 +56309,9 @@ body{background:var(--linen)}
 @media(max-width:650px){
  #openingUI .paperBrand{left:25px;top:27px;font-size:21px;letter-spacing:4px}
  #openingUI .paperBrand:after{width:17px;height:21px;font-size:13px;margin-left:5px;vertical-align:2px}
- #openingUI .paperViews{top:auto;bottom:59px;right:50%;transform:translateX(50%);white-space:nowrap}
- #openingUI .paperViews button{padding:14px 24px;font-size:11px}
+ #openingUI .paperViews{top:28px;bottom:auto;right:24px;transform:none;white-space:nowrap}
+ #openingUI .paperViews button{padding:9px 10px;font-size:9px;letter-spacing:0}
+ #openingUI #growHouse:not([hidden]){bottom:60px;min-width:238px;padding:14px 20px;font-size:13px}
  .mountCorner.a,.mountCorner.c{left:12px}.mountCorner.b,.mountCorner.d{right:12px}.mountCorner.a,.mountCorner.b{top:12px}.mountCorner.c,.mountCorner.d{bottom:12px}
  .artDrawing{left:25px;bottom:32px;width:47px;height:44px;opacity:.24}.artAxis{right:27px;bottom:30px;height:34px;width:23px}
  #openingUI .riseProgress{bottom:42px;width:140px}
@@ -56322,6 +56326,8 @@ document.head.append(style);
 const art=document.createElement('div');art.id='artMount';art.setAttribute('aria-hidden','true');art.innerHTML=`<i class="mountCorner a"></i><i class="mountCorner b"></i><i class="mountCorner c"></i><i class="mountCorner d"></i><svg class="artDrawing" viewBox="0 0 95 87"><path d="M8 48 43 28 79 48 44 68ZM8 48V25L43 5 79 25v23M43 5v23M8 25l36 20 35-20M44 45v23M8 55l36 20 35-20M8 62l36 20 35-20M23 17v23M61 15v23"/><path class="accent" d="M44 68V45L79 25M79 48V25"/></svg><i class="artAxis"></i>`;document.body.append(art);
 document.querySelector('#paperView').textContent='纸面';
 document.querySelector('#paperTo3D').textContent='3D 全景 ↗';
+document.querySelector('#growHouse').innerHTML='开启 3D 全景 <span aria-hidden="true">↗</span>';
+document.querySelector('#paperFlyIn').textContent='走进家中 ↘';
 document.querySelector('#flyUI .bottom').innerHTML='拖动环顾 · WASD 移动 · E / Q 升降';
 document.querySelector('#flyUI .bottom').title='Shift 加速 · 双击房间飞入 · Esc 回空中 · 自由飞行可穿墙';
 document.querySelector('#viewDeck summary').title='未标尺寸与装修为示意；自由飞行可穿墙';
