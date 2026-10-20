@@ -62726,6 +62726,204 @@ function tick(now){requestAnimationFrame(tick);const dt=Math.min(.05,(now-last)/
 let wasMobile=innerWidth<=650;addEventListener('resize',()=>{const mobile=innerWidth<=650;if(mobile!==wasMobile){panel.open=!mobile;$('#viewDeck').open=!mobile;wasMobile=mobile}});
 requestAnimationFrame(tick);window.__visitor={avatar,get mode(){return mode},get transitioning(){return !!transition},enter,leave,chooseRole,get role(){return selectedRole},get eyeHeight(){return eyeHeight},models:{adult,child},collision,bodyRadius};
 })();
+</script><script>(()=>{const {Controls,Euler,Vector3}=window.__three;
+
+const _euler = new Euler( 0, 0, 0, 'YXZ' );
+const _vector = new Vector3();
+
+const _changeEvent = { type: 'change' };
+const _lockEvent = { type: 'lock' };
+const _unlockEvent = { type: 'unlock' };
+
+const _PI_2 = Math.PI / 2;
+
+class PointerLockControls extends Controls {
+
+	constructor( camera, domElement = null ) {
+
+		super( camera, domElement );
+
+		this.isLocked = false;
+
+		// Set to constrain the pitch of the camera
+		// Range is 0 to Math.PI radians
+		this.minPolarAngle = 0; // radians
+		this.maxPolarAngle = Math.PI; // radians
+
+		this.pointerSpeed = 1.0;
+
+		// event listeners
+
+		this._onMouseMove = onMouseMove.bind( this );
+		this._onPointerlockChange = onPointerlockChange.bind( this );
+		this._onPointerlockError = onPointerlockError.bind( this );
+
+		if ( this.domElement !== null ) {
+
+			this.connect();
+
+		}
+
+	}
+
+	connect() {
+
+		this.domElement.ownerDocument.addEventListener( 'mousemove', this._onMouseMove );
+		this.domElement.ownerDocument.addEventListener( 'pointerlockchange', this._onPointerlockChange );
+		this.domElement.ownerDocument.addEventListener( 'pointerlockerror', this._onPointerlockError );
+
+	}
+
+	disconnect() {
+
+		this.domElement.ownerDocument.removeEventListener( 'mousemove', this._onMouseMove );
+		this.domElement.ownerDocument.removeEventListener( 'pointerlockchange', this._onPointerlockChange );
+		this.domElement.ownerDocument.removeEventListener( 'pointerlockerror', this._onPointerlockError );
+
+	}
+
+	dispose() {
+
+		this.disconnect();
+
+	}
+
+	getObject() {
+
+		console.warn( 'THREE.PointerLockControls: getObject() has been deprecated. Use controls.object instead.' ); // @deprecated r169
+
+		return this.object;
+
+	}
+
+	getDirection( v ) {
+
+		return v.set( 0, 0, - 1 ).applyQuaternion( this.object.quaternion );
+
+	}
+
+	moveForward( distance ) {
+
+		if ( this.enabled === false ) return;
+
+		// move forward parallel to the xz-plane
+		// assumes camera.up is y-up
+
+		const camera = this.object;
+
+		_vector.setFromMatrixColumn( camera.matrix, 0 );
+
+		_vector.crossVectors( camera.up, _vector );
+
+		camera.position.addScaledVector( _vector, distance );
+
+	}
+
+	moveRight( distance ) {
+
+		if ( this.enabled === false ) return;
+
+		const camera = this.object;
+
+		_vector.setFromMatrixColumn( camera.matrix, 0 );
+
+		camera.position.addScaledVector( _vector, distance );
+
+	}
+
+	lock() {
+
+		this.domElement.requestPointerLock();
+
+	}
+
+	unlock() {
+
+		this.domElement.ownerDocument.exitPointerLock();
+
+	}
+
+}
+
+// event listeners
+
+function onMouseMove( event ) {
+
+	if ( this.enabled === false || this.isLocked === false ) return;
+
+	const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+	const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+	const camera = this.object;
+	_euler.setFromQuaternion( camera.quaternion );
+
+	_euler.y -= movementX * 0.002 * this.pointerSpeed;
+	_euler.x -= movementY * 0.002 * this.pointerSpeed;
+
+	_euler.x = Math.max( _PI_2 - this.maxPolarAngle, Math.min( _PI_2 - this.minPolarAngle, _euler.x ) );
+
+	camera.quaternion.setFromEuler( _euler );
+
+	this.dispatchEvent( _changeEvent );
+
+}
+
+function onPointerlockChange() {
+
+	if ( this.domElement.ownerDocument.pointerLockElement === this.domElement ) {
+
+		this.dispatchEvent( _lockEvent );
+
+		this.isLocked = true;
+
+	} else {
+
+		this.dispatchEvent( _unlockEvent );
+
+		this.isLocked = false;
+
+	}
+
+}
+
+function onPointerlockError() {
+
+	console.error( 'THREE.PointerLockControls: Unable to use Pointer Lock API' );
+
+}
+
+window.__HomePointerLockControls=PointerLockControls;
+})();</script><script>// Integration for Three.js r170 PointerLockControls (MIT), bundled offline.
+(()=>{
+const T=__three,fly=__fly,visitor=__visitor,canvas=__home.renderer.domElement;
+const controls=new window.__HomePointerLockControls(fly.camera,canvas);
+controls.pointerSpeed=1;controls.minPolarAngle=.12;controls.maxPolarAngle=Math.PI-.12;
+const supported=typeof canvas.requestPointerLock==='function';
+const button=document.createElement('button');button.id='mouseLook';button.textContent='开启鼠标环顾';button.hidden=true;
+document.querySelector('#flyUI .actions').prepend(button);
+const cross=document.createElement('div');cross.id='lookCrosshair';cross.setAttribute('aria-hidden','true');document.body.append(cross);
+const style=document.createElement('style');style.textContent='#lookCrosshair{display:none;position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff9e7;box-shadow:0 0 0 1px #263c3670;pointer-events:none;z-index:7}body.mouseLookLocked #lookCrosshair{display:block}#mouseLook[hidden]{display:none}@media(pointer:coarse){#mouseLook{display:none!important}}';document.head.append(style);
+function human(){return visitor.mode==='first'||visitor.mode==='follow'}
+function release(){if(document.pointerLockElement===canvas)controls.unlock();fly.cancelMotion?.()}
+async function lock(){if(!supported||!human()||innerWidth<=650)return;fly.cancelMotion?.();try{await canvas.requestPointerLock()}catch{button.textContent='重试鼠标环顾';document.querySelector('#visitorModeState').textContent='鼠标锁定未开启，可重试或按住拖动环顾'}}
+button.onclick=()=>controls.isLocked?release():lock();
+controls.addEventListener('change',()=>{fly.setCamera(fly.camera.position,fly.camera.quaternion)});
+controls.addEventListener('lock',()=>{document.body.classList.add('mouseLookLocked');button.textContent='释放鼠标 · Esc'});
+controls.addEventListener('unlock',()=>{document.body.classList.remove('mouseLookLocked');button.textContent='开启鼠标环顾';fly.cancelMotion?.()});
+// Capture pointer events before the legacy drag handler to prevent double rotation.
+document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||e.target!==canvas||!human())return;if(controls.isLocked){e.stopImmediatePropagation();return}e.preventDefault();e.stopImmediatePropagation();lock()},{capture:true});
+document.addEventListener('pointermove',e=>{if(controls.isLocked&&e.pointerType!=='touch')e.stopImmediatePropagation()},{capture:true});
+document.addEventListener('keydown',e=>{if(e.code==='Escape'&&human()){e.stopImmediatePropagation();release()}},{capture:true});
+window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release()});
+for(const id of ['paperFlyIn','visitorFirst','visitorFollow','visitorAdult','visitorChild'])document.getElementById(id)?.addEventListener('click',()=>{if(human())lock()});
+function tick(){requestAnimationFrame(tick);const active=human()&&!__opening.active&&!__fusion.plan;
+ controls.enabled=active&&!visitor.transitioning;
+ button.hidden=!active||!supported||innerWidth<=650;
+ if(!active&&controls.isLocked)release();
+ if(active&&innerWidth>650)document.querySelector('#flyUI .bottom').textContent=controls.isLocked?'移动鼠标环顾 · WASD 行走 · Esc 释放鼠标':'点击画面开启鼠标环顾 · WASD 行走';
+}requestAnimationFrame(tick);
+window.__mouseLook={controls,get isLocked(){return controls.isLocked},lock,release};
+})();
 </script></body></html>
 
 
