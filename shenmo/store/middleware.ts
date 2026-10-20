@@ -1,0 +1,3 @@
+import {NextResponse} from 'next/server';
+export function middleware(){const r=NextResponse.next();r.headers.set('X-Content-Type-Options','nosniff');r.headers.set('Referrer-Policy','strict-origin-when-cross-origin');r.headers.set('Permissions-Policy','camera=(), microphone=(), geolocation=()');r.headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://imgurloss.xqd.cn; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'");return r}
+export const config={matcher:['/((?!_next|favicon).*)']};
