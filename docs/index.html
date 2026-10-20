@@ -62688,7 +62688,7 @@ const adult=__characterFactory.build('adult'),child=__characterFactory.build('ch
 const ring=new T.Mesh(new T.RingGeometry(.3,.33,48),new T.MeshBasicMaterial({color:'#a5513e',transparent:true,opacity:.45,side:T.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.018;avatar.add(ring);
 avatar.visible=false;
 Promise.all([adult.promise,child.promise]).then(()=>{limbs.splice(0,limbs.length,...(selectedRole==='child'?child:adult).limbs);chooseRole(selectedRole,false);document.body.dataset.characterArt='premium'});
-const panel=document.createElement('details');panel.id='visitorPanel';panel.open=innerWidth>650;panel.hidden=true;panel.innerHTML='<summary><span class="visitorDot"></span>参观者 <small>1.75 m</small></summary><div class="visitorRoles"><button id="visitorAdult" class="active">成人视角</button><button id="visitorChild">小孩视角</button></div><div class="visitorModes"><button id="visitorFirst">人物视角 ↘</button><button id="visitorFollow">跟随视角 ↗</button></div><p id="visitorModeState">选择一个视角，走进这个家</p>';document.body.append(panel);
+const panel=document.createElement('details');panel.id='visitorPanel';panel.open=innerWidth>650;panel.hidden=true;panel.innerHTML='<summary><span class="visitorDot"></span>参观者 <small>1.75 m</small></summary><div class="visitorRoles"><button id="visitorAdult" class="active">成人角色</button><button id="visitorChild">小孩角色</button></div><div class="visitorModes"><button id="visitorFollow">第三人称参观 ↗</button></div><p id="visitorModeState">选择一个视角，走进这个家</p>';document.body.append(panel);
 const exit=document.createElement('button');exit.id='visitorExit';exit.textContent='退出人物视角';exit.hidden=true;$('#flyUI .actions').prepend(exit);
 const css=document.createElement('style');css.textContent=`
 #visitorPanel{position:fixed;left:28px;bottom:69px;width:194px;padding:14px;background:#f8f4e9ed;border:1px solid #3c56452d;border-radius:4px;backdrop-filter:blur(18px);z-index:6;color:#315e52;font:11px 'Microsoft YaHei',sans-serif;box-shadow:0 10px 30px #2f3b2b09}
@@ -62699,29 +62699,38 @@ function quaternion(p,l){const camera=fly.camera.clone();camera.position.copy(p)
 const collision=__walkCollision.create(h.rooms,h.walls);const bodyRadius=()=>selectedRole==='child'?.17:.27;
 function spawn(){const r=h.rooms.find(r=>r.name==='餐客厅')||h.rooms[0];const safe=collision.safe(r.point[0],r.point[1],bodyRadius());avatar.position.set(safe?.x??r.point[0],.035,safe?.z??r.point[1]);const dx=r.look[0]-r.point[0],dz=r.look[1]-r.point[1];avatar.rotation.y=Math.atan2(dx,dz);configured=true;previousPosition.copy(avatar.position)}
 function direction(){return new T.Vector3(Math.sin(avatar.rotation.y),0,Math.cos(avatar.rotation.y))}
-function leave(){if(mode!=='free'&&!opening.active){const p=avatar.position.clone().addScaledVector(direction(),-3).setY(2.4),l=avatar.position.clone().setY(1.2);fly.setCamera(p,quaternion(p,l));fly.camera.fov=53;fly.camera.updateProjectionMatrix()}transition=null;mode='free';fly.cancelMotion?.();fly.blocked=opening.active||__fusion.plan;document.body.classList.remove('visitorMode');exit.hidden=true;$('#visitorFirst').classList.remove('active');$('#visitorFollow').classList.remove('active');$('#visitorModeState').textContent='选择一个视角，走进这个家';for(const l of limbs){if(l.apply)l.apply(0);else l.joint.rotation.x=0}}
-function enter(next){if(opening.active)return;if(__fusion.plan)$('#solidView').click();fly.cancelMotion?.();if(!configured)spawn();const safe=collision.safe(avatar.position.x,avatar.position.z,bodyRadius());if(!safe){$('#visitorModeState').textContent='此处空间不足，请调整入户位置';return}avatar.position.set(safe.x,.035,safe.z);const d=direction(),p=avatar.position.clone(),target=next==='first'?p.clone().setY(eyeHeight):p.clone().addScaledVector(d,-3).setY(2.4),look=p.clone().addScaledVector(d,next==='first'?3:1.7).setY(next==='first'?eyeHeight-.04:(selectedRole==='child'?.88:1.25));
- mode=next;fly.camera.fov=next==='first'?(innerWidth<=650?78:63):53;fly.camera.updateProjectionMatrix();transition={time:0,p:fly.camera.position.clone(),q:fly.camera.quaternion.clone(),target,qTarget:quaternion(target,look)};fly.blocked=true;document.body.classList.add('visitorMode');exit.hidden=false;$('#visitorFirst').classList.toggle('active',next==='first');$('#visitorFollow').classList.toggle('active',next==='follow');$('#visitorModeState').textContent=next==='first'?('视高 '+(eyeHeight-.035).toFixed(2)+' m · 拖动环顾 / 行走'):'跟随人物 · 拖动环顾 / 行走';panel.open=false;
+function leave(){if(mode!=='free'&&!opening.active){const p=avatar.position.clone().addScaledVector(direction(),-3).setY(2.4),l=avatar.position.clone().setY(1.2);fly.setCamera(p,quaternion(p,l));fly.camera.fov=53;fly.camera.updateProjectionMatrix()}transition=null;mode='free';fly.cancelMotion?.();fly.blocked=opening.active||__fusion.plan;document.body.classList.remove('visitorMode');exit.hidden=true;$('#visitorFollow').classList.remove('active');$('#visitorModeState').textContent='选择一个视角，走进这个家';for(const l of limbs){if(l.apply)l.apply(0);else l.joint.rotation.x=0}}
+function enter(){if(opening.active)return;if(__fusion.plan)$('#solidView').click();fly.cancelMotion?.();if(!configured)spawn();const safe=collision.safe(avatar.position.x,avatar.position.z,bodyRadius());if(!safe){$('#visitorModeState').textContent='此处空间不足，请调整入户位置';return}avatar.position.set(safe.x,.035,safe.z);
+ const d=direction(),look=avatar.position.clone().setY(selectedRole==='child'?.88:1.25),target=look.clone().addScaledVector(d,-2.6);target.y+=.85;
+ mode='follow';fly.camera.fov=innerWidth<=650?65:55;fly.camera.updateProjectionMatrix();transition={time:0,p:fly.camera.position.clone(),q:fly.camera.quaternion.clone(),target,qTarget:quaternion(target,look)};fly.blocked=true;document.body.classList.add('visitorMode');exit.hidden=false;$('#visitorFollow').classList.add('active');$('#visitorModeState').textContent='第三人称 · 移动鼠标环顾 / WASD 行走';panel.open=false;
 }
-function chooseRole(role,enterView=true){selectedRole=role;const chosen=role==='child'?child:adult;eyeHeight=chosen.eyeHeight;adult.group.visible=role==='adult';child.group.visible=role==='child';limbs.splice(0,limbs.length,...chosen.limbs);$('#visitorPanel summary small').textContent=(role==='child'?'小孩':'成人')+' · '+chosen.height.toFixed(2)+' m';$('#visitorAdult').classList.toggle('active',role==='adult');$('#visitorChild').classList.toggle('active',role==='child');avatar.name=role==='child'?'黑西装小孩':'黑西装成人';if(enterView&&!opening.active)enter('first')}
+function chooseRole(role,enterView=true){selectedRole=role;const chosen=role==='child'?child:adult;eyeHeight=chosen.eyeHeight;adult.group.visible=role==='adult';child.group.visible=role==='child';limbs.splice(0,limbs.length,...chosen.limbs);$('#visitorPanel summary small').textContent=(role==='child'?'小孩':'成人')+' · '+chosen.height.toFixed(2)+' m';$('#visitorAdult').classList.toggle('active',role==='adult');$('#visitorChild').classList.toggle('active',role==='child');avatar.name=role==='child'?'黑西装小孩':'黑西装成人';if(enterView&&!opening.active)enter('follow')}
 $('#visitorAdult').onclick=()=>chooseRole('adult');$('#visitorChild').onclick=()=>chooseRole('child');chooseRole('adult',false);
-$('#paperFlyIn').onclick=()=>enter('first');$('#visitorFirst').onclick=()=>enter('first');$('#visitorFollow').onclick=()=>enter('follow');exit.onclick=leave;
+$('#paperFlyIn').onclick=()=>enter('follow');$('#visitorFollow').onclick=()=>enter('follow');exit.onclick=leave;
 for(const id of ['homeSky','openReplay','paperFlyIn','uploadPlan','uploadPlanFly','flatView'])$('#'+id)?.addEventListener('click',leave,true);
 $('#flyUI .roomlist').addEventListener('click',leave,true);
 document.addEventListener('dblclick',e=>{if(mode!=='free'&&e.target===h.renderer.domElement){e.preventDefault();e.stopImmediatePropagation()}},true);
-addEventListener('floorplanchange',()=>{leave();spawn();$('#paperFlyIn').onclick=()=>enter('first')});
+addEventListener('floorplanchange',()=>{leave();spawn();$('#paperFlyIn').onclick=()=>enter('follow')});
 function canStep(x,z){return collision.clear(x,z,bodyRadius())}
 function slide(at,dx,dz){collision.slide(at,dx,dz,bodyRadius())}
-const ray=new T.Raycaster();let press=null;h.renderer.domElement.addEventListener('pointerdown',e=>{press={x:e.clientX,y:e.clientY}},true);h.renderer.domElement.addEventListener('pointerup',e=>{if(mode!=='free'||!avatar.visible||!press||Math.hypot(e.clientX-press.x,e.clientY-press.y)>6)return;const r=h.renderer.domElement.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),fly.camera);if(ray.intersectObject(avatar,true).length)enter('first')},true);
-function tick(now){requestAnimationFrame(tick);const dt=Math.min(.05,(now-last)/1000);last=now;if(!opening.ready)return;if(!configured)spawn();panel.hidden=opening.active;avatar.visible=!opening.active&&!__fusion.plan&&mode!=='first';
+const ray=new T.Raycaster();let press=null;h.renderer.domElement.addEventListener('pointerdown',e=>{press={x:e.clientX,y:e.clientY}},true);h.renderer.domElement.addEventListener('pointerup',e=>{if(mode!=='free'||!avatar.visible||!press||Math.hypot(e.clientX-press.x,e.clientY-press.y)>6)return;const r=h.renderer.domElement.getBoundingClientRect();ray.setFromCamera(new T.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),fly.camera);if(ray.intersectObject(avatar,true).length)enter('follow')},true);
+function tick(now){requestAnimationFrame(tick);const dt=Math.min(.05,(now-last)/1000);last=now;if(!opening.ready)return;if(!configured)spawn();panel.hidden=opening.active;avatar.visible=!opening.active&&!__fusion.plan;
  if(opening.active){if(mode!=='free')leave();lastCamera.copy(fly.camera.position);return}
  if(transition){transition.time+=dt;const t=Math.min(1,transition.time/1.4),u=t*t*(3-2*t);fly.setCamera(transition.p.clone().lerp(transition.target,u),transition.q.clone().slerp(transition.qTarget,u));if(t===1){transition=null;fly.blocked=false;lastCamera.copy(fly.camera.position)}return}
- if(mode==='first'){const proposed=fly.camera.position.clone(),at=avatar.position.clone();slide(at,proposed.x-at.x,proposed.z-at.z);avatar.position.copy(at);fly.camera.position.set(at.x,eyeHeight,at.z);const d=fly.camera.getWorldDirection(new T.Vector3());avatar.rotation.y=Math.atan2(d.x,d.z)}
- else if(mode==='follow'){const delta=fly.camera.position.clone().sub(lastCamera);if(delta.length()<1)slide(avatar.position,delta.x,delta.z);const d=fly.camera.getWorldDirection(new T.Vector3());d.y=0;d.normalize();avatar.rotation.y=Math.atan2(d.x,d.z);fly.camera.position.copy(avatar.position).addScaledVector(d,-3);fly.camera.position.y=2.4;}
+ if(mode==='follow'){
+  const delta=fly.camera.position.clone().sub(lastCamera);if(delta.length()<1)slide(avatar.position,delta.x,delta.z);
+  const d=fly.camera.getWorldDirection(new T.Vector3());
+  if(Math.hypot(delta.x,delta.z)>.0001)avatar.rotation.y=Math.atan2(d.x,d.z);
+  const pivot=avatar.position.clone().setY(selectedRole==='child'?.88:1.25),back=d.clone().negate(),ray=new T.Ray(pivot,back);let distance=2.75;
+  // Shorten the camera boom at solid walls instead of placing it outside the room.
+  for(const w of h.walls){const hit=ray.intersectBox(new T.Box3(new T.Vector3(w.minx-.10,0,w.minz-.10),new T.Vector3(w.maxx+.10,2.8,w.maxz+.10)),new T.Vector3());if(hit)distance=Math.min(distance,Math.max(.38,hit.distanceTo(pivot)-.08))}
+  fly.camera.position.copy(pivot).addScaledVector(back,distance);fly.camera.position.y=Math.max(.24,fly.camera.position.y);
+ }
+
  const moved=avatar.position.distanceTo(previousPosition);if(moved>.0001){stepTime+=dt*8;for(const l of limbs){const angle=Math.sin(stepTime)*.24*l.side;if(l.apply)l.apply(angle);else l.joint.rotation.x=angle}}else for(const l of limbs){if(l.apply)l.apply((l.value||0)*.82);else l.joint.rotation.x*=.82};
  previousPosition.copy(avatar.position);lastCamera.copy(fly.camera.position);ring.material.opacity=mode==='free'?.45:.14;
- if(mode!=='free'){$('#altitude').textContent=fly.camera.position.y.toFixed(1);$('#where').textContent=mode==='first'?'人物视角':'跟随视角'}
- if(mode!=='free')$('#flyUI .bottom').textContent=innerWidth<=650?'单指环顾 · 双指缩放 · 方向键行走':'拖动环顾 · WASD 行走 · 可切换跟随视角';
+ if(mode!=='free'){$('#altitude').textContent=fly.camera.position.y.toFixed(1);$('#where').textContent='第三人称'}
+ if(mode!=='free')$('#flyUI .bottom').textContent=innerWidth<=650?'单指环顾 · 双指缩放 · 方向键行走':'移动鼠标环顾 · WASD 行走';
 }
 let wasMobile=innerWidth<=650;addEventListener('resize',()=>{const mobile=innerWidth<=650;if(mobile!==wasMobile){panel.open=!mobile;$('#viewDeck').open=!mobile;wasMobile=mobile}});
 requestAnimationFrame(tick);window.__visitor={avatar,get mode(){return mode},get transitioning(){return !!transition},enter,leave,chooseRole,get role(){return selectedRole},get eyeHeight(){return eyeHeight},models:{adult,child},collision,bodyRadius};
@@ -62893,36 +62902,43 @@ function onPointerlockError() {
 }
 
 window.__HomePointerLockControls=PointerLockControls;
-})();</script><script>// Integration for Three.js r170 PointerLockControls (MIT), bundled offline.
+})();</script><script>// Third-person hover look works without Pointer Lock permissions.
+// Optional unlimited relative look uses the bundled official Three.js controls.
 (()=>{
 const T=__three,fly=__fly,visitor=__visitor,canvas=__home.renderer.domElement;
 const controls=new window.__HomePointerLockControls(fly.camera,canvas);
-controls.pointerSpeed=1;controls.minPolarAngle=.12;controls.maxPolarAngle=Math.PI-.12;
-const supported=typeof canvas.requestPointerLock==='function';
-const button=document.createElement('button');button.id='mouseLook';button.textContent='开启鼠标环顾';button.hidden=true;
-document.querySelector('#flyUI .actions').prepend(button);
-const cross=document.createElement('div');cross.id='lookCrosshair';cross.setAttribute('aria-hidden','true');document.body.append(cross);
-const style=document.createElement('style');style.textContent='#lookCrosshair{display:none;position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:#fff9e7;box-shadow:0 0 0 1px #263c3670;pointer-events:none;z-index:7}body.mouseLookLocked #lookCrosshair{display:block}#mouseLook[hidden]{display:none}@media(pointer:coarse){#mouseLook{display:none!important}}';document.head.append(style);
-function human(){return visitor.mode==='first'||visitor.mode==='follow'}
-function release(){if(document.pointerLockElement===canvas)controls.unlock();fly.cancelMotion?.()}
-async function lock(){if(!supported||!human()||innerWidth<=650)return;fly.cancelMotion?.();try{await canvas.requestPointerLock()}catch{button.textContent='重试鼠标环顾';document.querySelector('#visitorModeState').textContent='鼠标锁定未开启，可重试或按住拖动环顾'}}
-button.onclick=()=>controls.isLocked?release():lock();
-controls.addEventListener('change',()=>{fly.setCamera(fly.camera.position,fly.camera.quaternion)});
-controls.addEventListener('lock',()=>{document.body.classList.add('mouseLookLocked');button.textContent='释放鼠标 · Esc'});
-controls.addEventListener('unlock',()=>{document.body.classList.remove('mouseLookLocked');button.textContent='开启鼠标环顾';fly.cancelMotion?.()});
-// Capture pointer events before the legacy drag handler to prevent double rotation.
-document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||e.target!==canvas||!human())return;if(controls.isLocked){e.stopImmediatePropagation();return}e.preventDefault();e.stopImmediatePropagation();lock()},{capture:true});
-document.addEventListener('pointermove',e=>{if(controls.isLocked&&e.pointerType!=='touch')e.stopImmediatePropagation()},{capture:true});
-document.addEventListener('keydown',e=>{if(e.code==='Escape'&&human()){e.stopImmediatePropagation();release()}},{capture:true});
-window.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release()});
-for(const id of ['paperFlyIn','visitorFirst','visitorFollow','visitorAdult','visitorChild'])document.getElementById(id)?.addEventListener('click',()=>{if(human())lock()});
-function tick(){requestAnimationFrame(tick);const active=human()&&!__opening.active&&!__fusion.plan;
- controls.enabled=active&&!visitor.transitioning;
- button.hidden=!active||!supported||innerWidth<=650;
- if(!active&&controls.isLocked)release();
- if(active&&innerWidth>650)document.querySelector('#flyUI .bottom').textContent=controls.isLocked?'移动鼠标环顾 · WASD 行走 · Esc 释放鼠标':'点击画面开启鼠标环顾 · WASD 行走';
+controls.pointerSpeed=.85;controls.minPolarAngle=.25;controls.maxPolarAngle=2.15;
+let previous=null,paused=false,activeBefore=false;
+const button=document.createElement('button');button.id='mouseLook';button.hidden=true;document.querySelector('#flyUI .actions').prepend(button);
+function active(){return visitor.mode==='follow'&&!visitor.transitioning&&!__opening.active&&!__fusion.plan}
+function sync(){fly.setCamera(fly.camera.position,fly.camera.quaternion)}
+function release(){if(document.pointerLockElement===canvas)controls.unlock();fly.cancelMotion?.();previous=null}
+async function lock(){if(!active())return;try{await canvas.requestPointerLock()}catch{paused=false;previous=null;button.textContent='鼠标环顾已开启'}}
+controls.addEventListener('change',sync);
+controls.addEventListener('unlock',()=>{previous=null;fly.cancelMotion?.()});
+button.onclick=()=>{if(paused){paused=false;previous=null}else if(controls.isLocked){release()}else lock()};
+const css=document.createElement('style');css.textContent='#mouseLook[hidden]{display:none}@media(pointer:coarse){#mouseLook{display:none!important}}';document.head.append(css);
+document.addEventListener('pointermove',e=>{
+ if(e.pointerType==='touch'||!active())return;
+ if(controls.isLocked){e.stopImmediatePropagation();return}
+ if(paused||e.target!==canvas){previous=null;return}
+ e.stopImmediatePropagation();
+ const current={x:e.clientX,y:e.clientY};if(previous){const dx=current.x-previous.x,dy=current.y-previous.y;
+  const angle=new T.Euler().setFromQuaternion(fly.camera.quaternion,'YXZ');angle.y-=dx*.0025;angle.x=T.MathUtils.clamp(angle.x-dy*.0025,-.58,1.30);fly.camera.quaternion.setFromEuler(angle);sync();
+ }previous=current;
+},{capture:true});
+document.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||e.target!==canvas||!active())return;paused=false;previous={x:e.clientX,y:e.clientY};e.preventDefault();e.stopImmediatePropagation()},{capture:true});
+document.addEventListener('keydown',e=>{if(e.code==='Escape'&&visitor.mode==='follow'){e.stopImmediatePropagation();paused=true;release()}},{capture:true});
+window.addEventListener('blur',()=>{paused=true;release()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){paused=true;release()}});
+function tick(){requestAnimationFrame(tick);const on=active();controls.enabled=on&&!paused;
+ if(on&&!activeBefore){paused=false;previous=null}activeBefore=on;
+ if(!on){previous=null;if(controls.isLocked)release()}
+ button.hidden=visitor.mode!=='follow'||innerWidth<=650;
+ button.textContent=paused?'继续鼠标环顾':controls.isLocked?'释放鼠标 · Esc':'连续环顾';
+ if(on&&innerWidth>650)document.querySelector('#flyUI .bottom').textContent=paused?'点击画面继续环顾 · WASD 行走':controls.isLocked?'移动鼠标环顾 · WASD 行走 · Esc 释放':'移动鼠标直接环顾 · WASD 行走 · Esc 暂停';
 }requestAnimationFrame(tick);
-window.__mouseLook={controls,get isLocked(){return controls.isLocked},lock,release};
+window.__mouseLook={controls,get isLocked(){return controls.isLocked},get paused(){return paused},lock,release};
 })();
 </script></body></html>
 
