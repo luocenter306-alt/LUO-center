@@ -1,4 +1,0 @@
-interface:
-  display_name: "户型图 · 3D 神游"
-  short_description: "将户型图变成离线可进入的三维空间，支持俯视、自由飞行和昼夜预览"
-  default_prompt: "使用 $floorplan-3d-explorer，把这张户型图建成可离线打开、能飞进房间的 3D 空间，直接显示全景，不添加开场视频。"
